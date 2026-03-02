@@ -816,6 +816,9 @@ function entry(d) {
   if(!S.entries[k]) S.entries[k]={plans:[]};
   return S.entries[k];
 }
+function markModified(dateKey) {
+  if(dateKey && S.entries[dateKey]) S.entries[dateKey].lastModified=Date.now();
+}
 function persist() { save(); if(S.fbReady&&S.user) fbSync(); }
 
 /* ================================================================
@@ -1163,6 +1166,7 @@ function saveMemo() {
     if(!ta) return;
     const ds=dateStr(S.date), e=entry(ds);
     e.memo=ta.value;
+    markModified(ds);
     persist();
     const ind=document.getElementById('memoSaved');
     if(ind){ind.classList.add('show');setTimeout(()=>ind.classList.remove('show'),1500);}
@@ -1376,6 +1380,7 @@ function slotDrop(event,time,type) {
   const em=Math.min(sm+dur,SLOT1);
   const ds=dateStr(S.date), e=entry(ds);
   e.plans.push({id:uid(),start:time,end:minToTime(em),title:todo.title,type,pri:0});
+  markModified(ds);
   persist(); render();
   toast(`"${todo.title}" 추가됨`);
 }
@@ -1444,6 +1449,7 @@ function saveSchedule() {
   } else {
     e.plans.push({id:uid(),start,end,title,type,pri});
   }
+  markModified(ds);
   persist(); closeModal(); render();
   toast('저장되었습니다');
 }
@@ -1452,6 +1458,7 @@ function deleteSchedule() {
   if(!S.editingId||!confirm('이 일정을 삭제하시겠습니까?')) return;
   const ds=dateStr(S.date), e=entry(ds);
   e.plans=e.plans.filter(p=>p.id!==S.editingId);
+  markModified(ds);
   persist(); closeModal(); render();
   toast('삭제되었습니다');
 }
@@ -1597,13 +1604,14 @@ function updateAuthUI() {
 function fbSync() {
   if(!S.fbReady||!S.user) return;
   const db=firebase.firestore(), u=S.user.uid;
+  const now=Date.now();
   for(const[date,ent]of Object.entries(S.entries)){
-    if(ent.plans&&ent.plans.length){
-      db.collection('users').doc(u).collection('entries').doc(date).set(ent,{merge:true}).catch(console.error);
-    }
+    if(!ent.lastModified) ent.lastModified=now;
+    const ref=db.collection('users').doc(u).collection('entries').doc(date);
+    ref.set(ent).catch(console.error);
   }
-  db.collection('users').doc(u).collection('data').doc('todos').set({items:S.todos},{merge:true}).catch(console.error);
-  db.collection('users').doc(u).collection('data').doc('goals').set(S.weeklyGoals,{merge:true}).catch(console.error);
+  db.collection('users').doc(u).collection('data').doc('todos').set({items:S.todos, lastModified: now}).catch(console.error);
+  db.collection('users').doc(u).collection('data').doc('goals').set({...S.weeklyGoals, lastModified: now}).catch(console.error);
 }
 
 function fbPull() {
@@ -1612,15 +1620,35 @@ function fbPull() {
   db.collection('users').doc(u).collection('entries').get().then(snap=>{
     snap.forEach(doc=>{
       const d=doc.data(),loc=S.entries[doc.id];
-      if(!loc||(d.plans&&d.plans.length>=(loc.plans||[]).length)) S.entries[doc.id]=d;
+      if(!loc) { S.entries[doc.id]=d; }
+      else {
+        const remoteTime=d.lastModified||0;
+        const localTime=loc.lastModified||0;
+        if(remoteTime>localTime) S.entries[doc.id]=d;
+      }
     });
     save(); render();
   });
   db.collection('users').doc(u).collection('data').doc('todos').get().then(doc=>{
-    if(doc.exists&&doc.data().items){const r=doc.data().items;if(r.length>=S.todos.length){S.todos=r;save();renderTodos();}}
+    if(doc.exists&&doc.data().items){
+      const r=doc.data();
+      const remoteTime=r.lastModified||0;
+      const localTime=S._todosLastModified||0;
+      if(remoteTime>localTime){S.todos=r.items;S._todosLastModified=remoteTime;save();renderTodos();}
+    }
   });
   db.collection('users').doc(u).collection('data').doc('goals').get().then(doc=>{
-    if(doc.exists){S.weeklyGoals={...S.weeklyGoals,...doc.data()};save();}
+    if(doc.exists){
+      const d=doc.data();
+      const remoteTime=d.lastModified||0;
+      const localTime=S._goalsLastModified||0;
+      if(remoteTime>=localTime){
+        const {lastModified,...goals}=d;
+        S.weeklyGoals={...S.weeklyGoals,...goals};
+        S._goalsLastModified=remoteTime;
+        save();
+      }
+    }
   });
 }
 
@@ -1628,11 +1656,26 @@ function fbListen() {
   if(!S.fbReady||!S.user) return;
   const db=firebase.firestore(), u=S.user.uid;
   S.unsubs.push(db.collection('users').doc(u).collection('entries').onSnapshot(snap=>{
-    snap.docChanges().forEach(ch=>{if(ch.type==='added'||ch.type==='modified')S.entries[ch.doc.id]=ch.doc.data();});
+    snap.docChanges().forEach(ch=>{
+      if(ch.type==='removed'){
+        delete S.entries[ch.doc.id];
+      } else {
+        const d=ch.doc.data();
+        const loc=S.entries[ch.doc.id];
+        const remoteTime=d.lastModified||0;
+        const localTime=(loc&&loc.lastModified)||0;
+        if(remoteTime>=localTime) S.entries[ch.doc.id]=d;
+      }
+    });
     save(); render();
   }));
   S.unsubs.push(db.collection('users').doc(u).collection('data').doc('todos').onSnapshot(doc=>{
-    if(doc.exists&&doc.data().items){S.todos=doc.data().items;save();renderTodos();}
+    if(doc.exists&&doc.data().items){
+      const r=doc.data();
+      const remoteTime=r.lastModified||0;
+      const localTime=S._todosLastModified||0;
+      if(remoteTime>=localTime){S.todos=r.items;S._todosLastModified=remoteTime;save();renderTodos();}
+    }
   }));
 }
 
@@ -1676,7 +1719,9 @@ function initTouch() {
       if(slot&&slot.dataset.time&&slot.dataset.type){
         const sm=timeToMin(slot.dataset.time), dur=dragTodo.estimatedMinutes||60;
         const em=Math.min(sm+dur,SLOT1);
-        entry(dateStr(S.date)).plans.push({id:uid(),start:slot.dataset.time,end:minToTime(em),title:dragTodo.title,type:slot.dataset.type,pri:0});
+        const _ds=dateStr(S.date);
+        entry(_ds).plans.push({id:uid(),start:slot.dataset.time,end:minToTime(em),title:dragTodo.title,type:slot.dataset.type,pri:0});
+        markModified(_ds);
         persist();render();toast(`"${dragTodo.title}" 추가됨`);
       } else if(cell&&cell.dataset.date){
         S.date=parseDate(cell.dataset.date);switchView('daily');
