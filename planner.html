@@ -1,0 +1,1844 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>일정 관리 플래너</title>
+<style>
+:root {
+  --primary: #4A90D9;
+  --primary-light: #6BA5E7;
+  --primary-dark: #3570B0;
+  --plan-color: #4A90D9;
+  --plan-bg: #E8F0FE;
+  --actual-color: #34A853;
+  --actual-bg: #E6F4EA;
+  --mismatch-color: #EA4335;
+  --mismatch-bg: #FCE8E6;
+  --todo-color: #F9AB00;
+  --bg: #F5F7FA;
+  --surface: #FFFFFF;
+  --surface-hover: #F0F2F5;
+  --text: #1A1A2E;
+  --text-secondary: #5F6368;
+  --border: #DADCE0;
+  --border-light: #E8EAED;
+  --shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,0.15);
+  --radius: 8px;
+  --radius-sm: 4px;
+  --todo-width: 280px;
+  --header-height: 56px;
+  --nav-height: 48px;
+  --transition: 0.2s ease;
+  --time-col: 55px;
+  --slot-h: 40px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* ===== Header ===== */
+.header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: var(--header-height);
+  background: var(--primary);
+  color: white;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px;
+  box-shadow: var(--shadow);
+}
+.header h1 { font-size: 18px; font-weight: 600; white-space: nowrap; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.header-btn {
+  background: rgba(255,255,255,0.2); border: none; color: white;
+  padding: 6px 12px; border-radius: var(--radius-sm); cursor: pointer;
+  font-size: 13px; transition: var(--transition); white-space: nowrap;
+}
+.header-btn:hover { background: rgba(255,255,255,0.3); }
+
+/* ===== Tabs ===== */
+.tabs {
+  position: fixed; top: var(--header-height); left: 0; right: 0; z-index: 99;
+  height: var(--nav-height);
+  background: var(--surface);
+  display: flex; border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.tab {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  border: none; background: none; cursor: pointer;
+  font-size: 14px; font-weight: 500; color: var(--text-secondary);
+  transition: var(--transition); position: relative;
+}
+.tab.active { color: var(--primary); font-weight: 600; }
+.tab.active::after {
+  content: ''; position: absolute; bottom: 0; left: 20%; right: 20%;
+  height: 3px; background: var(--primary); border-radius: 3px 3px 0 0;
+}
+
+/* ===== Nav Bar ===== */
+.nav-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+}
+.nav-btn {
+  background: none; border: 1px solid var(--border); color: var(--text);
+  width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; transition: var(--transition); flex-shrink: 0;
+}
+.nav-btn:hover { background: var(--surface-hover); }
+.nav-title { font-size: 16px; font-weight: 600; text-align: center; flex: 1; }
+.nav-today {
+  background: var(--primary); color: white; border: none;
+  padding: 4px 12px; border-radius: var(--radius-sm); cursor: pointer;
+  font-size: 12px; flex-shrink: 0;
+}
+
+/* ===== Layout ===== */
+.app-container {
+  margin-top: calc(var(--header-height) + var(--nav-height));
+  display: flex; min-height: calc(100vh - var(--header-height) - var(--nav-height));
+}
+
+/* ===== Todo Panel ===== */
+.todo-panel {
+  width: var(--todo-width); min-width: var(--todo-width);
+  background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  transition: width var(--transition), min-width var(--transition);
+  overflow: hidden;
+}
+.todo-panel.collapsed { width: 0; min-width: 0; border: none; }
+.todo-toggle {
+  position: fixed; top: calc(var(--header-height) + var(--nav-height) + 12px);
+  z-index: 10;
+  width: 28px; height: 28px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface); border: 1px solid var(--border); border-left: none;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: var(--text-secondary); transition: left var(--transition);
+}
+.todo-toggle.at-open { left: var(--todo-width); }
+.todo-toggle.at-closed { left: 0; }
+.todo-header {
+  padding: 12px; border-bottom: 1px solid var(--border-light);
+  font-weight: 600; font-size: 14px; display: flex;
+  align-items: center; justify-content: space-between;
+  white-space: nowrap;
+}
+.todo-add-form {
+  padding: 8px 12px; border-bottom: 1px solid var(--border-light);
+  display: flex; gap: 4px;
+}
+.todo-add-form input {
+  flex: 1; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 8px; font-size: 13px; outline: none; min-width: 0;
+}
+.todo-add-form input:focus { border-color: var(--primary); }
+.todo-add-form button {
+  background: var(--primary); color: white; border: none;
+  border-radius: var(--radius-sm); padding: 6px 10px; cursor: pointer; font-size: 13px;
+}
+.todo-time-input { width: 50px !important; flex: none !important; text-align: center; }
+.todo-list { flex: 1; overflow-y: auto; padding: 8px; }
+.todo-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px; margin-bottom: 4px; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--border-light);
+  cursor: grab; transition: var(--transition); font-size: 13px;
+}
+.todo-item:active { cursor: grabbing; }
+.todo-item.dragging { opacity: 0.5; border-color: var(--primary); }
+.todo-item:hover { border-color: var(--primary-light); background: var(--plan-bg); }
+.todo-item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex-shrink: 0; }
+.todo-item .todo-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.todo-item .todo-title.completed { text-decoration: line-through; color: var(--text-secondary); }
+.todo-item .todo-time { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+.todo-item .todo-delete {
+  background: none; border: none; color: var(--text-secondary);
+  cursor: pointer; font-size: 14px; padding: 2px; opacity: 0; transition: var(--transition);
+}
+.todo-item:hover .todo-delete { opacity: 1; }
+.todo-item .todo-delete:hover { color: var(--mismatch-color); }
+
+/* ===== Main Content ===== */
+.main-content { flex: 1; overflow-y: auto; min-width: 0; }
+
+/* ===== Monthly View ===== */
+.calendar-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  border-left: 1px solid var(--border-light);
+}
+.calendar-header {
+  padding: 8px 4px; text-align: center; font-size: 12px;
+  font-weight: 600; color: var(--text-secondary);
+  border-right: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  background: var(--surface);
+}
+.calendar-cell {
+  min-height: 90px; padding: 4px; border-right: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light); background: var(--surface);
+  cursor: pointer; transition: var(--transition); position: relative;
+  overflow: hidden;
+}
+.calendar-cell:hover { background: var(--surface-hover); }
+.calendar-cell.other-month { background: #FAFAFA; }
+.calendar-cell.other-month .cell-date { color: #CCC; }
+.calendar-cell.today { background: var(--plan-bg); }
+.calendar-cell.today .cell-date {
+  background: var(--primary); color: white; border-radius: 50%;
+  width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+}
+.cell-date { font-size: 12px; font-weight: 500; margin-bottom: 2px; }
+.cell-date.sunday { color: var(--mismatch-color); }
+.cell-date.saturday { color: var(--primary); }
+.cell-info { font-size: 10px; color: var(--text-secondary); }
+.cell-entries { display: flex; flex-direction: column; gap: 1px; margin-top: 1px; overflow: hidden; }
+.cell-entry {
+  font-size: 10px; padding: 1px 3px; border-radius: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.3;
+}
+.cell-entry.plan { background: var(--plan-bg); color: var(--plan-color); border-left: 2px solid var(--plan-color); }
+.cell-entry.actual { background: var(--actual-bg); color: var(--actual-color); border-left: 2px solid var(--actual-color); }
+.cell-entry .ce-time { font-weight: 600; }
+.cell-more { font-size: 9px; color: var(--text-secondary); padding: 0 3px; }
+.cell-match-bar { height: 3px; border-radius: 2px; margin-top: 2px; }
+.drag-over { background: var(--plan-bg) !important; outline: 2px dashed var(--primary); outline-offset: -2px; }
+
+/* ===== Weekly View ===== */
+.weekly-goals {
+  padding: 12px 16px; background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+}
+.weekly-goals h3 { font-size: 14px; margin-bottom: 8px; }
+.weekly-goal-item { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.weekly-goal-item input {
+  flex: 1; border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+  padding: 6px 8px; font-size: 13px; outline: none;
+}
+.weekly-goal-item input:focus { border-color: var(--primary); }
+.weekly-goal-item button { background: none; border: none; cursor: pointer; color: var(--text-secondary); font-size: 14px; }
+.weekly-goal-add {
+  background: none; border: 1px dashed var(--border); border-radius: var(--radius-sm);
+  padding: 6px; width: 100%; cursor: pointer; color: var(--text-secondary); font-size: 13px; margin-top: 4px;
+}
+.weekly-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  border-left: 1px solid var(--border-light);
+}
+.weekly-day-header {
+  padding: 8px 4px; text-align: center; font-size: 12px; font-weight: 600;
+  border-right: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  background: var(--surface);
+}
+.weekly-day-header.today { background: var(--plan-bg); }
+.weekly-day-header .wday { color: var(--text-secondary); font-size: 11px; }
+.weekly-day-header .wdate { font-size: 16px; margin: 2px 0; }
+.weekly-day-header .wmatch { font-size: 10px; }
+.weekly-day-cell {
+  min-height: 200px; padding: 4px; border-right: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light); background: var(--surface);
+  cursor: pointer; transition: var(--transition); font-size: 11px;
+}
+.weekly-day-cell:hover { background: var(--surface-hover); }
+.weekly-entry {
+  padding: 3px 5px; margin-bottom: 2px; border-radius: 3px;
+  font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.weekly-entry.plan { background: var(--plan-bg); color: var(--plan-color); border-left: 2px solid var(--plan-color); }
+.weekly-entry.actual { background: var(--actual-bg); color: var(--actual-color); border-left: 2px solid var(--actual-color); }
+.weekly-summary {
+  padding: 12px 16px; background: var(--surface);
+  border-top: 1px solid var(--border-light);
+  display: flex; gap: 16px; flex-wrap: wrap;
+}
+.weekly-stat {
+  text-align: center; padding: 8px 16px;
+  background: var(--bg); border-radius: var(--radius); flex: 1; min-width: 100px;
+}
+.weekly-stat .stat-value { font-size: 24px; font-weight: 700; color: var(--primary); }
+.weekly-stat .stat-label { font-size: 11px; color: var(--text-secondary); }
+
+/* ===== Daily View ===== */
+.daily-stats {
+  padding: 12px 16px; background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+}
+.match-rate-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.match-rate-value { font-size: 28px; font-weight: 700; min-width: 70px; }
+.match-rate-track { flex: 1; height: 8px; background: var(--border-light); border-radius: 4px; overflow: hidden; }
+.match-rate-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+.daily-extra-stats { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); }
+.daily-extra-stats span { background: var(--bg); padding: 4px 8px; border-radius: var(--radius-sm); }
+
+.daily-columns-header {
+  display: grid; grid-template-columns: var(--time-col) 1fr 1fr;
+  border-bottom: 2px solid var(--border);
+  background: var(--surface); position: sticky; top: 0; z-index: 5;
+}
+.col-label { padding: 8px; text-align: center; font-weight: 600; font-size: 13px; }
+.col-label.plan-label { color: var(--plan-color); background: var(--plan-bg); }
+.col-label.actual-label { color: var(--actual-color); background: var(--actual-bg); }
+
+.daily-timeline-wrapper {
+  overflow-y: auto;
+  max-height: calc(100vh - var(--header-height) - var(--nav-height) - 200px);
+}
+.daily-timeline {
+  display: grid;
+  grid-template-columns: var(--time-col) 1fr 1fr;
+  position: relative;
+}
+.time-labels { display: flex; flex-direction: column; border-right: 1px solid var(--border-light); }
+.time-label-cell {
+  height: var(--slot-h); padding: 0 6px; font-size: 11px; color: var(--text-secondary);
+  text-align: right; display: flex; align-items: flex-start; justify-content: flex-end;
+  border-bottom: 1px solid var(--border-light);
+}
+.time-label-cell.half { border-bottom: 1px dashed #F0F0F0; }
+.time-label-cell.half .tl-text { display: none; }
+
+.timeline-col {
+  position: relative; border-right: 1px solid var(--border-light);
+}
+.slot-row {
+  height: var(--slot-h); border-bottom: 1px solid var(--border-light);
+  cursor: pointer; transition: background 0.1s;
+}
+.slot-row.half { border-bottom: 1px dashed #F0F0F0; }
+.slot-row:hover { background: rgba(0,0,0,0.02); }
+
+.schedule-block {
+  position: absolute; left: 3px; right: 3px;
+  border-radius: var(--radius-sm); padding: 4px 6px;
+  font-size: 11px; overflow: hidden; cursor: pointer;
+  z-index: 5; transition: box-shadow var(--transition);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+.schedule-block:hover { box-shadow: var(--shadow-lg); z-index: 6; }
+.schedule-block.plan {
+  background: var(--plan-bg); border-left: 3px solid var(--plan-color); color: var(--plan-color);
+}
+.schedule-block.actual {
+  background: var(--actual-bg); border-left: 3px solid var(--actual-color); color: var(--actual-color);
+}
+.schedule-block .block-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.schedule-block .block-time { font-size: 10px; opacity: 0.8; }
+/* Priority colors override */
+.schedule-block.pri-3 { background: #FDE8E8; border-left-color: #DC2626; color: #DC2626; }
+.schedule-block.pri-2 { background: #FFF3E0; border-left-color: #E65100; color: #E65100; }
+.schedule-block.pri-1 { background: #FFF8E1; border-left-color: #F9A825; color: #F9A825; }
+/* .pri-0 = default, uses plan/actual colors */
+.cell-entry.pri-3 { background: #FDE8E8; border-left-color: #DC2626; color: #DC2626; }
+.cell-entry.pri-2 { background: #FFF3E0; border-left-color: #E65100; color: #E65100; }
+.cell-entry.pri-1 { background: #FFF8E1; border-left-color: #F9A825; color: #F9A825; }
+.weekly-entry.pri-3 { background: #FDE8E8; border-left-color: #DC2626; color: #DC2626; }
+.weekly-entry.pri-2 { background: #FFF3E0; border-left-color: #E65100; color: #E65100; }
+.weekly-entry.pri-1 { background: #FFF8E1; border-left-color: #F9A825; color: #F9A825; }
+.pri-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+.pri-dot.d3 { background: #DC2626; }
+.pri-dot.d2 { background: #E65100; }
+.pri-dot.d1 { background: #F9A825; }
+.schedule-block .block-actions {
+  position: absolute; top: 2px; right: 2px; display: flex; gap: 2px;
+  opacity: 0; transition: var(--transition);
+}
+.schedule-block:hover .block-actions { opacity: 1; }
+.block-action-btn {
+  background: rgba(255,255,255,0.8); border: none; cursor: pointer;
+  font-size: 11px; padding: 1px 3px; border-radius: 2px;
+}
+
+/* ===== Daily Detail Stats ===== */
+.daily-detail-stats { padding: 16px; background: var(--surface); border-top: 1px solid var(--border-light); }
+.detail-section { margin-bottom: 12px; }
+.detail-section h4 {
+  font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;
+  border-bottom: 1px solid var(--border-light); padding-bottom: 4px;
+}
+.detail-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 4px 8px; font-size: 12px; border-radius: var(--radius-sm); gap: 8px;
+}
+.detail-item:nth-child(even) { background: var(--bg); }
+.detail-item .over { color: var(--mismatch-color); font-weight: 500; }
+.detail-item .under { color: var(--actual-color); font-weight: 500; }
+
+/* ===== Daily Memo ===== */
+.daily-memo {
+  padding: 16px; background: var(--surface);
+  border-top: 1px solid var(--border-light);
+}
+.daily-memo h4 {
+  font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.daily-memo textarea {
+  width: 100%; min-height: 100px; padding: 10px 12px;
+  border: 1px solid var(--border-light); border-radius: var(--radius);
+  font-size: 13px; font-family: inherit; line-height: 1.6;
+  resize: vertical; outline: none; background: var(--bg);
+  transition: border-color var(--transition);
+}
+.daily-memo textarea:focus { border-color: var(--primary); background: var(--surface); }
+.daily-memo .memo-saved {
+  font-size: 11px; color: var(--actual-color); margin-top: 4px;
+  opacity: 0; transition: opacity 0.3s;
+}
+.daily-memo .memo-saved.show { opacity: 1; }
+
+/* ===== Search ===== */
+.search-box {
+  padding: 16px; border-bottom: 1px solid var(--border-light);
+  position: relative;
+}
+.search-input-wrap {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 8px 12px; background: var(--bg);
+  transition: border-color var(--transition);
+}
+.search-input-wrap:focus-within { border-color: var(--primary); background: var(--surface); }
+.search-input-wrap input {
+  flex: 1; border: none; outline: none; font-size: 14px;
+  background: transparent; min-width: 0;
+}
+.search-icon { color: var(--text-secondary); font-size: 16px; flex-shrink: 0; }
+.search-results {
+  flex: 1; overflow-y: auto; padding: 8px 16px;
+  max-height: 60vh;
+}
+.search-result-item {
+  padding: 10px 12px; margin-bottom: 6px;
+  border-radius: var(--radius); border: 1px solid var(--border-light);
+  cursor: pointer; transition: var(--transition);
+}
+.search-result-item:hover { border-color: var(--primary-light); background: var(--plan-bg); }
+.search-result-date {
+  font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;
+  display: flex; align-items: center; gap: 6px;
+}
+.search-result-date .result-type {
+  padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;
+}
+.result-type.plan-type { background: var(--plan-bg); color: var(--plan-color); }
+.result-type.actual-type { background: var(--actual-bg); color: var(--actual-color); }
+.result-type.memo-type { background: #FFF3E0; color: #E65100; }
+.result-type.todo-type { background: #FFF8E1; color: #F57F17; }
+.search-result-title { font-size: 13px; font-weight: 500; }
+.search-result-snippet {
+  font-size: 12px; color: var(--text-secondary); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.search-result-snippet mark {
+  background: #FFEB3B; color: var(--text); border-radius: 2px; padding: 0 1px;
+}
+.search-empty {
+  text-align: center; padding: 40px 16px;
+  color: var(--text-secondary); font-size: 14px;
+}
+.search-count {
+  font-size: 12px; color: var(--text-secondary); padding: 4px 16px 8px;
+}
+
+/* ===== Report View ===== */
+.report-view { padding: 16px; }
+.report-summary {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px; margin-bottom: 20px;
+}
+.report-card {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 16px; text-align: center; box-shadow: var(--shadow);
+}
+.report-card .card-value { font-size: 28px; font-weight: 700; }
+.report-card .card-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+.report-section {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 16px; margin-bottom: 16px; box-shadow: var(--shadow);
+}
+.report-section h3 { font-size: 15px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+.report-chart-container { width: 100%; overflow-x: auto; }
+.report-chart { width: 100%; height: 200px; }
+.report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.report-table th { text-align: left; padding: 8px; background: var(--bg); border-bottom: 1px solid var(--border); }
+.report-table td { padding: 8px; border-bottom: 1px solid var(--border-light); }
+.report-highlights { list-style: none; }
+.report-highlights li {
+  padding: 8px; margin-bottom: 4px; border-radius: var(--radius-sm);
+  font-size: 13px; background: var(--bg);
+}
+
+/* ===== Modal ===== */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  z-index: 200; align-items: center; justify-content: center;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 24px; width: 90%; max-width: 400px; box-shadow: var(--shadow-lg);
+  max-height: 90vh; overflow-y: auto;
+}
+.modal h2 { font-size: 18px; margin-bottom: 16px; }
+.modal-field { margin-bottom: 12px; }
+.modal-field label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: var(--text-secondary); }
+.modal-field input, .modal-field select {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 14px; outline: none;
+}
+.modal-field input:focus, .modal-field select:focus { border-color: var(--primary); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.btn {
+  padding: 8px 16px; border-radius: var(--radius-sm); border: none;
+  cursor: pointer; font-size: 14px; font-weight: 500; transition: var(--transition);
+}
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-dark); }
+.btn-danger { background: var(--mismatch-color); color: white; }
+.btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--surface-hover); }
+
+/* ===== Settings ===== */
+.settings-section { margin-bottom: 16px; }
+.settings-section h3 { font-size: 14px; margin-bottom: 8px; }
+.settings-section input {
+  width: 100%; padding: 6px 8px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 12px; margin-bottom: 4px;
+  font-family: monospace; outline: none;
+}
+.settings-section input:focus { border-color: var(--primary); }
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: #333; color: white; padding: 10px 20px; border-radius: var(--radius);
+  font-size: 13px; z-index: 300; opacity: 0; transition: opacity 0.3s;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* ===== Mobile ===== */
+@media (max-width: 768px) {
+  :root { --todo-width: 100%; --time-col: 42px; }
+  .todo-panel {
+    position: fixed; top: calc(var(--header-height) + var(--nav-height));
+    left: 0; right: 0; bottom: 0; z-index: 50;
+    width: 100% !important; min-width: 100% !important;
+    display: none;
+  }
+  .todo-panel.mobile-show { display: flex; }
+  .todo-toggle { display: none !important; }
+  .mobile-todo-btn { display: flex !important; }
+  .calendar-cell { min-height: 60px; }
+  .cell-entry { font-size: 9px; }
+  .cell-entries { gap: 0; }
+  .cell-date { font-size: 11px; }
+  .weekly-day-cell { min-height: 100px; font-size: 10px; }
+  .time-label-cell { font-size: 10px; padding: 0 3px; }
+  .report-summary { grid-template-columns: repeat(2, 1fr); }
+  .modal { width: 95%; padding: 16px; }
+  .detail-item { flex-wrap: wrap; }
+}
+
+.mobile-todo-btn {
+  display: none !important;
+  position: fixed; bottom: 20px; right: 20px; z-index: 90;
+  width: 50px; height: 50px; border-radius: 50%;
+  background: var(--todo-color); color: white; border: none;
+  font-size: 20px; cursor: pointer; box-shadow: var(--shadow-lg);
+  align-items: center; justify-content: center;
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+.drag-ghost {
+  padding: 6px 12px; background: var(--primary); color: white;
+  border-radius: var(--radius-sm); font-size: 12px;
+  position: absolute; top: -1000px; left: -1000px; z-index: 999;
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <h1>📋 플래너</h1>
+  <div class="header-actions">
+    <button class="header-btn" onclick="openSearch()" title="검색">🔍</button>
+    <button class="header-btn" onclick="showSettings()" title="설정">⚙️</button>
+    <button class="header-btn" id="authBtn" onclick="handleAuth()">로그인</button>
+  </div>
+</header>
+
+<!-- Tabs -->
+<nav class="tabs">
+  <button class="tab active" data-view="monthly" onclick="switchView('monthly')">월간</button>
+  <button class="tab" data-view="weekly" onclick="switchView('weekly')">주간</button>
+  <button class="tab" data-view="daily" onclick="switchView('daily')">일간</button>
+  <button class="tab" data-view="report" onclick="switchView('report')">리포트</button>
+</nav>
+
+<!-- App Container -->
+<div class="app-container">
+  <!-- Todo Panel (PC: sidebar, Mobile: overlay) -->
+  <aside class="todo-panel" id="todoPanel">
+    <div class="todo-header">
+      <span>📝 할 일 목록</span>
+      <span id="todoCount" style="background:var(--primary);color:white;border-radius:10px;padding:2px 8px;font-size:11px">0</span>
+    </div>
+    <div class="todo-add-form">
+      <input type="text" id="todoInput" placeholder="할 일 입력..." onkeydown="if(event.key==='Enter')addTodo()">
+      <input type="number" class="todo-time-input" id="todoTimeInput" placeholder="분" min="0" step="30">
+      <button onclick="addTodo()">+</button>
+    </div>
+    <div class="todo-list" id="todoList"></div>
+  </aside>
+  <button class="todo-toggle at-open" id="todoToggle" onclick="toggleTodoPanel()">◀</button>
+
+  <!-- Main Content -->
+  <main class="main-content" id="mainContent"></main>
+</div>
+
+<!-- Mobile Todo FAB -->
+<button class="mobile-todo-btn" id="mobileTodoBtn" onclick="toggleMobileTodo()">📝</button>
+
+<!-- Schedule Modal -->
+<div class="modal-overlay" id="scheduleModal">
+  <div class="modal">
+    <h2 id="modalTitle">일정 추가</h2>
+    <div class="modal-field">
+      <label>제목</label>
+      <input type="text" id="modalTitleInput" placeholder="일정 제목" onkeydown="if(event.key==='Enter')saveSchedule()">
+    </div>
+    <div class="modal-field">
+      <label>시작 시간</label>
+      <select id="modalStart"></select>
+    </div>
+    <div class="modal-field">
+      <label>종료 시간</label>
+      <select id="modalEnd"></select>
+    </div>
+    <div class="modal-field">
+      <label>유형</label>
+      <select id="modalType">
+        <option value="plan">계획</option>
+        <option value="actual">실행</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>중요도</label>
+      <select id="modalPriority">
+        <option value="0">보통</option>
+        <option value="1" style="color:#F9A825">★ 관심</option>
+        <option value="2" style="color:#E65100">★★ 중요</option>
+        <option value="3" style="color:#DC2626">★★★ 최고</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+      <button class="btn btn-danger" id="modalDeleteBtn" style="display:none" onclick="deleteSchedule()">삭제</button>
+      <button class="btn btn-primary" onclick="saveSchedule()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal" style="max-width:500px">
+    <h2>설정</h2>
+    <div class="settings-section">
+      <h3>데이터 관리</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-secondary" onclick="exportData()">내보내기 (JSON)</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">가져오기</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+        <button class="btn btn-danger" onclick="if(confirm('모든 데이터를 삭제하시겠습니까?')){localStorage.clear();location.reload();}">초기화</button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>Firebase 설정 (멀티 디바이스 동기화)</h3>
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">Firebase 프로젝트의 웹 앱 설정에서 config 값을 입력하세요.</p>
+      <input id="fbApiKey" placeholder="apiKey">
+      <input id="fbAuthDomain" placeholder="authDomain">
+      <input id="fbProjectId" placeholder="projectId">
+      <input id="fbStorageBucket" placeholder="storageBucket">
+      <input id="fbMsgSenderId" placeholder="messagingSenderId">
+      <input id="fbAppId" placeholder="appId">
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-primary" onclick="saveFirebaseConfig()">Firebase 저장</button>
+        <button class="btn btn-secondary" onclick="clearFirebaseConfig()">Firebase 해제</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeSettings()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Search Modal -->
+<div class="modal-overlay" id="searchModal">
+  <div class="modal" style="max-width:560px;padding:0;display:flex;flex-direction:column;max-height:80vh">
+    <div class="search-box">
+      <div class="search-input-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="일정, 메모, 할 일 검색..." oninput="doSearch(this.value)">
+      </div>
+    </div>
+    <div class="search-count" id="searchCount"></div>
+    <div class="search-results" id="searchResults">
+      <div class="search-empty">검색어를 입력하세요</div>
+    </div>
+    <div style="padding:8px 16px 12px;border-top:1px solid var(--border-light);text-align:right">
+      <button class="btn btn-secondary" onclick="closeSearch()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+<!-- Drag Ghost -->
+<div class="drag-ghost" id="dragGhost"></div>
+
+<script>
+/* ================================================================
+   STATE
+   ================================================================ */
+const S = {
+  view: 'monthly',
+  date: new Date(),
+  entries: {},       // { 'YYYY-MM-DD': { plans: [{id,start,end,title,type},...], memo: '' } }
+  todos: [],
+  weeklyGoals: {},   // { 'YYYY-WNN': ['goal',...] }
+  editingId: null,
+  fbReady: false,
+  user: null,
+  unsubs: []
+};
+
+/* ================================================================
+   UTILITIES
+   ================================================================ */
+function dateStr(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function parseDate(s) { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function getMonday(d) {
+  const t=new Date(d), day=t.getDay();
+  t.setDate(t.getDate()-((day+6)%7));
+  return t;
+}
+function weekKey(d) {
+  const mon=getMonday(d), y=mon.getFullYear();
+  const jan1=new Date(y,0,1);
+  const wn=Math.ceil(((mon-jan1)/864e5+jan1.getDay()+1)/7);
+  return y+'-W'+String(wn).padStart(2,'0');
+}
+function timeToMin(t) { const [h,m]=t.split(':').map(Number); return h*60+m; }
+function minToTime(m) { return String(m/60|0).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function escHtml(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+// 한국어 제목 요약: "친구와 카페에서 공부하기" → "공부하기"
+function summarize(title) {
+  const particles = ['에서 ','와 ','과 ','한테서 ','에게서 ','한테 ','에게 ','(으)로 ','으로 ','로 ','부터 ','까지 '];
+  let t = title.trim();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const p of particles) {
+      const idx = t.indexOf(p);
+      if (idx >= 0 && idx + p.length < t.length) {
+        t = t.substring(idx + p.length);
+        changed = true;
+        break;
+      }
+    }
+  }
+  return t || title;
+}
+
+// 시간 축약: "09:00" → "9", "13:30" → "13:30"
+function shortTime(t) {
+  const [h,m] = t.split(':');
+  return m === '00' ? String(Number(h)) : Number(h)+':'+m;
+}
+
+// 중요도 CSS 클래스
+function priClass(p) { return p && p > 0 ? ' pri-'+p : ''; }
+function priDot(p) { return p && p > 0 ? `<span class="pri-dot d${p}"></span>` : ''; }
+
+const DAYS=['일','월','화','수','목','금','토'];
+const SLOT0=360, SLOT1=1440, SLOTD=30, SLOTH=40; // 06:00-24:00, 30min, 40px
+
+function allSlots() { const r=[]; for(let m=SLOT0;m<SLOT1;m+=SLOTD) r.push(minToTime(m)); return r; }
+
+function toast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._tid);
+  t._tid=setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+/* ================================================================
+   PERSISTENCE
+   ================================================================ */
+function save() {
+  localStorage.setItem('pl_entries', JSON.stringify(S.entries));
+  localStorage.setItem('pl_todos', JSON.stringify(S.todos));
+  localStorage.setItem('pl_goals', JSON.stringify(S.weeklyGoals));
+}
+function load() {
+  try {
+    const e=localStorage.getItem('pl_entries'); if(e) S.entries=JSON.parse(e);
+    const t=localStorage.getItem('pl_todos'); if(t) S.todos=JSON.parse(t);
+    const g=localStorage.getItem('pl_goals'); if(g) S.weeklyGoals=JSON.parse(g);
+  } catch(e) { console.error(e); }
+}
+function entry(d) {
+  const k=typeof d==='string'?d:dateStr(d);
+  if(!S.entries[k]) S.entries[k]={plans:[]};
+  return S.entries[k];
+}
+function persist() { save(); if(S.fbReady&&S.user) fbSync(); }
+
+/* ================================================================
+   MATCH RATE
+   ================================================================ */
+function matchRate(date) {
+  const e=entry(date);
+  if(!e.plans||!e.plans.length) return null;
+  const plans=e.plans.filter(p=>p.type==='plan');
+  const acts=e.plans.filter(p=>p.type==='actual');
+  if(!plans.length) return null;
+
+  const matched=[], unmatched=[], unplanned=[];
+  const used=new Set();
+
+  for(const pl of plans) {
+    const pm=timeToMin(pl.end)-timeToMin(pl.start);
+    let bi=-1, bs=0;
+    for(let i=0;i<acts.length;i++) {
+      if(used.has(i)) continue;
+      if(acts[i].title.trim().toLowerCase()===pl.title.trim().toLowerCase()) {
+        const am=timeToMin(acts[i].end)-timeToMin(acts[i].start);
+        const sc=Math.min(pm,am)/Math.max(pm,am);
+        if(sc>bs){bs=sc;bi=i;}
+      }
+    }
+    if(bi>=0) {
+      used.add(bi);
+      const am=timeToMin(acts[bi].end)-timeToMin(acts[bi].start);
+      matched.push({title:pl.title,planMin:pm,actualMin:am,rate:Math.min(pm,am)/Math.max(pm,am)*100});
+    } else {
+      unmatched.push({title:pl.title,planMin:pm});
+    }
+  }
+  for(let i=0;i<acts.length;i++) {
+    if(!used.has(i)) {
+      unplanned.push({title:acts[i].title,actualMin:timeToMin(acts[i].end)-timeToMin(acts[i].start)});
+    }
+  }
+
+  const avg=matched.length?matched.reduce((s,m)=>s+m.rate,0)/matched.length:0;
+  return {
+    avgRate:Math.round(avg),
+    fulfillRate:Math.round(matched.length/plans.length*100),
+    matched, unmatched, unplanned,
+    planCount:plans.length, actualCount:acts.length
+  };
+}
+
+function matchColor(r) {
+  if(r==null) return '#CCC';
+  if(r>=80) return '#34A853';
+  if(r>=50) return '#F9AB00';
+  return '#EA4335';
+}
+
+/* ================================================================
+   VIEW SWITCHING & NAVIGATION
+   ================================================================ */
+function switchView(v) {
+  S.view=v;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.view===v));
+  render();
+}
+
+function nav(delta) {
+  if(S.view==='monthly'||S.view==='report') S.date.setMonth(S.date.getMonth()+delta);
+  else if(S.view==='weekly') S.date.setDate(S.date.getDate()+delta*7);
+  else S.date.setDate(S.date.getDate()+delta);
+  render();
+}
+
+function goToday() { S.date=new Date(); render(); }
+function goDate(ds) { S.date=parseDate(ds); switchView('daily'); }
+
+/* ================================================================
+   RENDER
+   ================================================================ */
+function render() {
+  const m=document.getElementById('mainContent');
+  switch(S.view) {
+    case 'monthly': m.innerHTML=renderMonthly(); break;
+    case 'weekly': m.innerHTML=renderWeekly(); break;
+    case 'daily': m.innerHTML=renderDaily(); break;
+    case 'report': m.innerHTML=renderReport(); requestAnimationFrame(drawChart); break;
+  }
+  renderTodos();
+}
+
+/* ================================================================
+   MONTHLY VIEW
+   ================================================================ */
+function renderMonthly() {
+  const y=S.date.getFullYear(), m=S.date.getMonth();
+  const first=new Date(y,m,1), last=new Date(y,m+1,0);
+  const offset=(first.getDay()+6)%7;
+  const today=dateStr(new Date());
+  const startD=new Date(y,m,1-offset);
+  const cells=Math.ceil((offset+last.getDate())/7)*7;
+
+  let h=`<div class="nav-bar">
+    <button class="nav-btn" onclick="nav(-1)">◀</button>
+    <span class="nav-title">${y}년 ${m+1}월</span>
+    <button class="nav-today" onclick="goToday()">오늘</button>
+    <button class="nav-btn" onclick="nav(1)">▶</button>
+  </div><div class="calendar-grid">`;
+
+  for(const d of ['월','화','수','목','금','토','일']) h+=`<div class="calendar-header">${d}</div>`;
+
+  for(let i=0;i<cells;i++) {
+    const cd=new Date(startD); cd.setDate(startD.getDate()+i);
+    const ds=dateStr(cd), other=cd.getMonth()!==m, isToday=ds===today;
+    const dow=cd.getDay();
+    const mr=matchRate(ds);
+    const ent=S.entries[ds];
+    const hasMemo=ent&&ent.memo&&ent.memo.trim();
+    let dc=''; if(dow===0)dc='sunday'; else if(dow===6)dc='saturday';
+
+    h+=`<div class="calendar-cell ${other?'other-month':''} ${isToday?'today':''}"
+         onclick="goDate('${ds}')" data-date="${ds}"
+         ondragover="event.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="calDrop(event,'${ds}')">
+      <div class="cell-date ${dc}">${cd.getDate()}${hasMemo?'<span style="font-size:9px" title="메모 있음"> 📝</span>':''}</div>`;
+    if(!other&&ent&&ent.plans&&ent.plans.length) {
+      const sorted=[...ent.plans].sort((a,b)=>timeToMin(a.start)-timeToMin(b.start));
+      const maxShow=3;
+      h+=`<div class="cell-entries">`;
+      for(const it of sorted.slice(0,maxShow)) {
+        h+=`<div class="cell-entry ${it.type}${priClass(it.pri)}">${priDot(it.pri)}<span class="ce-time">${shortTime(it.start)}</span> ${escHtml(summarize(it.title))}</div>`;
+      }
+      if(sorted.length>maxShow) h+=`<div class="cell-more">+${sorted.length-maxShow}</div>`;
+      h+=`</div>`;
+      if(mr) h+=`<div class="cell-match-bar" style="background:${matchColor(mr.avgRate)};width:${mr.avgRate}%"></div>`;
+    }
+    h+=`</div>`;
+  }
+  return h+`</div>`;
+}
+
+/* ================================================================
+   WEEKLY VIEW
+   ================================================================ */
+function renderWeekly() {
+  const mon=getMonday(S.date);
+  const days=[]; for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);days.push(d);}
+  const today=dateStr(new Date()), wk=weekKey(mon);
+  const goals=S.weeklyGoals[wk]||[];
+
+  let tm=0,md=0,tp=0,ta=0;
+  for(const d of days){const r=matchRate(dateStr(d));if(r){tm+=r.avgRate;md++;tp+=r.planCount;ta+=r.actualCount;}}
+  const wa=md?Math.round(tm/md):null;
+
+  let h=`<div class="nav-bar">
+    <button class="nav-btn" onclick="nav(-1)">◀</button>
+    <span class="nav-title">${mon.getFullYear()}년 ${mon.getMonth()+1}/${mon.getDate()} ~ ${days[6].getMonth()+1}/${days[6].getDate()}</span>
+    <button class="nav-today" onclick="goToday()">오늘</button>
+    <button class="nav-btn" onclick="nav(1)">▶</button>
+  </div>
+  <div class="weekly-goals"><h3>🎯 주간 목표</h3><div>`;
+
+  for(let i=0;i<goals.length;i++) {
+    h+=`<div class="weekly-goal-item">
+      <input value="${escHtml(goals[i])}" onchange="updGoal('${wk}',${i},this.value)">
+      <button onclick="rmGoal('${wk}',${i})">✕</button></div>`;
+  }
+  h+=`</div><button class="weekly-goal-add" onclick="addGoal('${wk}')">+ 목표 추가</button></div>
+  <div class="weekly-grid">`;
+
+  for(const d of days) {
+    const ds=dateStr(d), mr=matchRate(ds);
+    h+=`<div class="weekly-day-header ${ds===today?'today':''}">
+      <div class="wday">${DAYS[d.getDay()]}</div><div class="wdate">${d.getDate()}</div>
+      ${mr?`<div class="wmatch" style="color:${matchColor(mr.avgRate)}">${mr.avgRate}%</div>`:''}
+    </div>`;
+  }
+
+  for(const d of days) {
+    const ds=dateStr(d), ent=S.entries[ds], items=ent?ent.plans:[];
+    h+=`<div class="weekly-day-cell" onclick="goDate('${ds}')" data-date="${ds}"
+         ondragover="event.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="calDrop(event,'${ds}')">`;
+    const sorted=[...items].sort((a,b)=>timeToMin(a.start)-timeToMin(b.start));
+    for(const it of sorted.slice(0,8)) {
+      h+=`<div class="weekly-entry ${it.type}${priClass(it.pri)}">${priDot(it.pri)}${shortTime(it.start)} ${escHtml(summarize(it.title))}</div>`;
+    }
+    if(sorted.length>8) h+=`<div style="color:var(--text-secondary);font-size:10px;padding:2px">+${sorted.length-8}</div>`;
+    h+=`</div>`;
+  }
+
+  h+=`</div><div class="weekly-summary">
+    <div class="weekly-stat"><div class="stat-value" style="color:${wa!=null?matchColor(wa):'#CCC'}">${wa!=null?wa+'%':'-'}</div><div class="stat-label">주간 평균 일치율</div></div>
+    <div class="weekly-stat"><div class="stat-value">${tp}</div><div class="stat-label">총 계획</div></div>
+    <div class="weekly-stat"><div class="stat-value">${ta}</div><div class="stat-label">총 실행</div></div>
+  </div>`;
+  return h;
+}
+
+/* ================================================================
+   DAILY VIEW
+   ================================================================ */
+function renderDaily() {
+  const d=S.date, ds=dateStr(d), e=entry(ds), mr=matchRate(ds);
+  const today=dateStr(new Date()), isToday=ds===today;
+  const plans=e.plans.filter(p=>p.type==='plan');
+  const acts=e.plans.filter(p=>p.type==='actual');
+  const slots=allSlots();
+
+  let mc='#CCC',mv='-',fv='-';
+  if(mr){mc=matchColor(mr.avgRate);mv=mr.avgRate+'%';fv=mr.fulfillRate+'%';}
+
+  let h=`<div class="nav-bar">
+    <button class="nav-btn" onclick="nav(-1)">◀</button>
+    <span class="nav-title">${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()} (${DAYS[d.getDay()]})${isToday?' <span style="color:var(--primary);font-size:12px">오늘</span>':''}</span>
+    <button class="nav-today" onclick="goToday()">오늘</button>
+    <button class="nav-btn" onclick="nav(1)">▶</button>
+  </div>
+
+  <div class="daily-stats">
+    <div class="match-rate-bar">
+      <div class="match-rate-value" style="color:${mc}">${mv}</div>
+      <div style="flex:1">
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">계획-실행 일치율</div>
+        <div class="match-rate-track"><div class="match-rate-fill" style="width:${mr?mr.avgRate:0}%;background:${mc}"></div></div>
+      </div>
+    </div>
+    <div class="daily-extra-stats">
+      <span>이행률: ${fv}</span><span>계획: ${plans.length}건</span><span>실행: ${acts.length}건</span>
+    </div>
+  </div>
+
+  <div class="daily-columns-header">
+    <div class="col-label">시간</div>
+    <div class="col-label plan-label">📋 계획</div>
+    <div class="col-label actual-label">✅ 실행</div>
+  </div>
+
+  <div class="daily-timeline-wrapper">
+    <div class="daily-timeline">
+      <div class="time-labels">`;
+
+  // Time labels
+  for(const sl of slots) {
+    const isH=sl.endsWith(':00');
+    h+=`<div class="time-label-cell ${isH?'':'half'}"><span class="tl-text">${sl}</span></div>`;
+  }
+  h+=`</div>`;
+
+  // Plan column
+  h+=`<div class="timeline-col" id="planCol">`;
+  for(const sl of slots) {
+    const isH=sl.endsWith(':00');
+    h+=`<div class="slot-row ${isH?'':'half'}" data-time="${sl}" data-type="plan"
+         onclick="openAdd('${sl}','plan')"
+         ondragover="event.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="slotDrop(event,'${sl}','plan')"></div>`;
+  }
+  // Plan blocks
+  for(const it of plans) {
+    const top=((timeToMin(it.start)-SLOT0)/SLOTD)*SLOTH;
+    const ht=((timeToMin(it.end)-timeToMin(it.start))/SLOTD)*SLOTH;
+    h+=`<div class="schedule-block plan${priClass(it.pri)}" style="top:${top}px;height:${Math.max(ht,20)}px"
+         onclick="editItem('${it.id}')">
+      <div class="block-title">${priDot(it.pri)}${escHtml(it.title)}</div>
+      <div class="block-time">${it.start}-${it.end}</div>
+      <div class="block-actions"><button class="block-action-btn" onclick="event.stopPropagation();editItem('${it.id}')">✏️</button></div>
+    </div>`;
+  }
+  h+=`</div>`;
+
+  // Actual column
+  h+=`<div class="timeline-col" id="actualCol">`;
+  for(const sl of slots) {
+    const isH=sl.endsWith(':00');
+    h+=`<div class="slot-row ${isH?'':'half'}" data-time="${sl}" data-type="actual"
+         onclick="openAdd('${sl}','actual')"
+         ondragover="event.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="slotDrop(event,'${sl}','actual')"></div>`;
+  }
+  // Actual blocks
+  for(const it of acts) {
+    const top=((timeToMin(it.start)-SLOT0)/SLOTD)*SLOTH;
+    const ht=((timeToMin(it.end)-timeToMin(it.start))/SLOTD)*SLOTH;
+    h+=`<div class="schedule-block actual${priClass(it.pri)}" style="top:${top}px;height:${Math.max(ht,20)}px"
+         onclick="editItem('${it.id}')">
+      <div class="block-title">${priDot(it.pri)}${escHtml(it.title)}</div>
+      <div class="block-time">${it.start}-${it.end}</div>
+      <div class="block-actions"><button class="block-action-btn" onclick="event.stopPropagation();editItem('${it.id}')">✏️</button></div>
+    </div>`;
+  }
+  h+=`</div></div></div>`;
+
+  // Detail stats
+  if(mr&&(mr.matched.length||mr.unmatched.length||mr.unplanned.length)) {
+    h+=`<div class="daily-detail-stats">`;
+    if(mr.matched.length) {
+      h+=`<div class="detail-section"><h4>📊 항목별 일치율</h4>`;
+      for(const m of mr.matched) {
+        const diff=m.actualMin-m.planMin;
+        h+=`<div class="detail-item">
+          <span style="flex:1">${escHtml(m.title)}</span>
+          <span>계획 ${m.planMin}분 / 실행 ${m.actualMin}분</span>
+          <span style="font-weight:600;color:${matchColor(m.rate)}">${Math.round(m.rate)}%</span>
+          <span class="${diff>0?'over':'under'}">${diff>0?'+':''}${diff}분</span>
+        </div>`;
+      }
+      h+=`</div>`;
+    }
+    if(mr.unmatched.length) {
+      h+=`<div class="detail-section"><h4>❌ 미실행 항목</h4>`;
+      for(const u of mr.unmatched) h+=`<div class="detail-item"><span>${escHtml(u.title)}</span><span>${u.planMin}분 계획</span></div>`;
+      h+=`</div>`;
+    }
+    if(mr.unplanned.length) {
+      h+=`<div class="detail-section"><h4>➕ 계획 외 실행</h4>`;
+      for(const u of mr.unplanned) h+=`<div class="detail-item"><span>${escHtml(u.title)}</span><span>${u.actualMin}분 실행</span></div>`;
+      h+=`</div>`;
+    }
+    h+=`</div>`;
+  }
+
+  // Daily Memo
+  const memo=e.memo||'';
+  h+=`<div class="daily-memo">
+    <h4>📝 일간 메모</h4>
+    <textarea id="dailyMemo" placeholder="오늘의 메모, 회고, 느낀 점 등을 자유롭게 기록하세요..."
+      oninput="saveMemo()">${escHtml(memo)}</textarea>
+    <div class="memo-saved" id="memoSaved">저장됨</div>
+  </div>`;
+
+  return h;
+}
+
+/* ================================================================
+   DAILY MEMO
+   ================================================================ */
+let _memoTimer=null;
+function saveMemo() {
+  clearTimeout(_memoTimer);
+  _memoTimer=setTimeout(()=>{
+    const ta=document.getElementById('dailyMemo');
+    if(!ta) return;
+    const ds=dateStr(S.date), e=entry(ds);
+    e.memo=ta.value;
+    persist();
+    const ind=document.getElementById('memoSaved');
+    if(ind){ind.classList.add('show');setTimeout(()=>ind.classList.remove('show'),1500);}
+  },500);
+}
+
+/* ================================================================
+   REPORT VIEW
+   ================================================================ */
+function renderReport() {
+  const y=S.date.getFullYear(), m=S.date.getMonth();
+  const dim=new Date(y,m+1,0).getDate();
+  let tp=0,ta=0,tmr=0,tf=0,dwd=0;
+  let bestD=null,bestR=-1,worstD=null,worstR=101;
+  let maxUmD=null,maxUmC=0;
+  const am={}, upf={};
+
+  for(let day=1;day<=dim;day++) {
+    const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const ent=S.entries[ds], mr2=matchRate(ds);
+    if(ent&&ent.plans.length) {
+      for(const p of ent.plans.filter(x=>x.type==='plan')) {
+        const dur=timeToMin(p.end)-timeToMin(p.start);
+        if(!am[p.title]) am[p.title]={plan:0,actual:0}; am[p.title].plan+=dur; tp++;
+      }
+      for(const a of ent.plans.filter(x=>x.type==='actual')) {
+        const dur=timeToMin(a.end)-timeToMin(a.start);
+        if(!am[a.title]) am[a.title]={plan:0,actual:0}; am[a.title].actual+=dur; ta++;
+      }
+    }
+    if(mr2) {
+      tmr+=mr2.avgRate; tf+=mr2.fulfillRate; dwd++;
+      if(mr2.avgRate>bestR){bestR=mr2.avgRate;bestD=day;}
+      if(mr2.avgRate<worstR){worstR=mr2.avgRate;worstD=day;}
+      if(mr2.unmatched.length>maxUmC){maxUmC=mr2.unmatched.length;maxUmD=day;}
+      for(const u of mr2.unplanned) upf[u.title]=(upf[u.title]||0)+1;
+    }
+  }
+
+  const avgM=dwd?Math.round(tmr/dwd):0, avgF=dwd?Math.round(tf/dwd):0;
+  const topAct=Object.entries(am).map(([t,d])=>({title:t,...d,total:d.plan+d.actual})).sort((a,b)=>b.total-a.total).slice(0,10);
+  const topByA=Object.entries(am).filter(([,d])=>d.actual>0).map(([t,d])=>({title:t,actual:d.actual})).sort((a,b)=>b.actual-a.actual).slice(0,5);
+  let mostOver=null;
+  for(const[t,d]of Object.entries(am)){if(d.plan&&d.actual){const ov=d.actual-d.plan;if(!mostOver||ov>mostOver.over)mostOver={title:t,over:ov,plan:d.plan,actual:d.actual};}}
+  const freqUp=Object.entries(upf).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  let h=`<div class="report-view">
+  <div class="nav-bar" style="margin:-16px -16px 16px -16px">
+    <button class="nav-btn" onclick="nav(-1)">◀</button>
+    <span class="nav-title">${y}년 ${m+1}월 리포트</span>
+    <button class="nav-today" onclick="goToday()">이번 달</button>
+    <button class="nav-btn" onclick="nav(1)">▶</button>
+  </div>
+  <div class="report-summary">
+    <div class="report-card"><div class="card-value" style="color:${matchColor(avgM)}">${avgM}%</div><div class="card-label">평균 일치율</div></div>
+    <div class="report-card"><div class="card-value">${avgF}%</div><div class="card-label">평균 이행률</div></div>
+    <div class="report-card"><div class="card-value">${tp}</div><div class="card-label">총 계획</div></div>
+    <div class="report-card"><div class="card-value">${ta}</div><div class="card-label">총 실행</div></div>
+  </div>
+  <div class="report-section"><h3>📊 일별 일치율 추이</h3>
+    <div class="report-chart-container"><canvas id="matchChart" class="report-chart"></canvas></div>
+  </div>
+  <div class="report-section"><h3>📋 활동별 분석</h3>
+    <table class="report-table"><thead><tr><th>활동</th><th>계획</th><th>실행</th><th>차이</th></tr></thead><tbody>`;
+
+  for(const a of topAct) {
+    const diff=a.actual-a.plan;
+    h+=`<tr><td>${escHtml(a.title)}</td><td>${a.plan}분</td><td>${a.actual}분</td>
+      <td style="color:${diff>0?'var(--mismatch-color)':'var(--actual-color)'}">${diff>0?'+':''}${diff}분</td></tr>`;
+  }
+  h+=`</tbody></table></div>
+  <div class="report-section"><h3>🏆 TOP 활동 (실행 시간)</h3>
+    <table class="report-table"><thead><tr><th>#</th><th>활동</th><th>시간</th></tr></thead><tbody>`;
+  topByA.forEach((a,i)=>{h+=`<tr><td>${i+1}</td><td>${escHtml(a.title)}</td><td>${a.actual}분 (${(a.actual/60).toFixed(1)}h)</td></tr>`;});
+
+  h+=`</tbody></table></div>
+  <div class="report-section"><h3>💡 특이사항</h3><ul class="report-highlights">`;
+  if(bestD) h+=`<li>✅ 일치율 최고: ${m+1}/${bestD} (${bestR}%)</li>`;
+  if(worstD) h+=`<li>⚠️ 일치율 최저: ${m+1}/${worstD} (${worstR}%)</li>`;
+  if(mostOver) h+=`<li>⏰ 가장 초과: ${escHtml(mostOver.title)} (계획 ${mostOver.plan}분 → 실행 ${mostOver.actual}분)</li>`;
+  if(maxUmD) h+=`<li>❌ 미실행 최다: ${m+1}/${maxUmD} (${maxUmC}건)</li>`;
+  if(freqUp.length) h+=`<li>🔄 계획 외 빈출: ${freqUp.map(([t,c])=>escHtml(t)+'('+c+'회)').join(', ')}</li>`;
+  if(!dwd) h+=`<li>데이터가 없습니다.</li>`;
+  h+=`</ul></div></div>`;
+  return h;
+}
+
+function drawChart() {
+  const canvas=document.getElementById('matchChart');
+  if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const rect=canvas.parentElement.getBoundingClientRect();
+  const w=rect.width, h=200;
+  canvas.width=w*dpr; canvas.height=h*dpr;
+  canvas.style.width=w+'px'; canvas.style.height=h+'px';
+  ctx.scale(dpr,dpr);
+
+  const y=S.date.getFullYear(), m=S.date.getMonth();
+  const dim=new Date(y,m+1,0).getDate();
+  const pad={t:20,r:15,b:25,l:35};
+  const cw=w-pad.l-pad.r, ch=h-pad.t-pad.b;
+  const bw=Math.max(cw/dim-2,3);
+
+  ctx.fillStyle='#FAFAFA'; ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle='#E8E8E8'; ctx.lineWidth=0.5;
+  ctx.font='10px sans-serif'; ctx.fillStyle='#999';
+  for(let i=0;i<=4;i++){
+    const yy=pad.t+ch/4*i;
+    ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(w-pad.r,yy);ctx.stroke();
+    ctx.textAlign='right';ctx.fillText((100-i*25)+'%',pad.l-4,yy+3);
+  }
+
+  for(let day=1;day<=dim;day++){
+    const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const mr2=matchRate(ds);
+    const x=pad.l+(day-1)*(cw/dim)+(cw/dim-bw)/2;
+    if(mr2){
+      const bh=mr2.avgRate/100*ch;
+      ctx.fillStyle=matchColor(mr2.avgRate);
+      ctx.fillRect(x,pad.t+ch-bh,bw,bh);
+    }
+    if(day%Math.max(1,Math.ceil(dim/15))===0||day===1){
+      ctx.fillStyle='#999';ctx.textAlign='center';
+      ctx.fillText(day+'',x+bw/2,h-pad.b+14);
+    }
+  }
+}
+
+/* ================================================================
+   TODO
+   ================================================================ */
+function renderTodos() {
+  const list=document.getElementById('todoList');
+  if(!list) return;
+  const active=S.todos.filter(t=>!t.completed);
+  const done=S.todos.filter(t=>t.completed);
+  document.getElementById('todoCount').textContent=active.length;
+
+  let h='';
+  for(const t of [...active,...done]) {
+    h+=`<div class="todo-item" draggable="true" data-todo-id="${t.id}"
+         ondragstart="todoDragStart(event,'${t.id}')">
+      <input type="checkbox" ${t.completed?'checked':''} onchange="todoToggle('${t.id}')">
+      <span class="todo-title ${t.completed?'completed':''}">${escHtml(t.title)}</span>
+      ${t.estimatedMinutes?`<span class="todo-time">${t.estimatedMinutes}분</span>`:''}
+      <button class="todo-delete" onclick="todoDel('${t.id}')">✕</button>
+    </div>`;
+  }
+  list.innerHTML=h;
+
+  // Re-attach dragend
+  list.querySelectorAll('.todo-item').forEach(el=>{
+    el.addEventListener('dragend',()=>{
+      el.classList.remove('dragging');
+      document.getElementById('dragGhost').style.top='-1000px';
+      document.querySelectorAll('.drag-over').forEach(d=>d.classList.remove('drag-over'));
+    });
+  });
+}
+
+function addTodo() {
+  const inp=document.getElementById('todoInput'), ti=document.getElementById('todoTimeInput');
+  const title=inp.value.trim();
+  if(!title) return;
+  S.todos.push({id:uid(),title,estimatedMinutes:parseInt(ti.value)||0,completed:false,createdAt:new Date().toISOString()});
+  inp.value=''; ti.value='';
+  persist(); renderTodos();
+}
+
+function todoToggle(id) {
+  const t=S.todos.find(x=>x.id===id);
+  if(t){t.completed=!t.completed; persist(); renderTodos();}
+}
+
+function todoDel(id) {
+  S.todos=S.todos.filter(x=>x.id!==id);
+  persist(); renderTodos();
+}
+
+/* ================================================================
+   WEEKLY GOALS
+   ================================================================ */
+function addGoal(wk) {
+  if(!S.weeklyGoals[wk]) S.weeklyGoals[wk]=[];
+  S.weeklyGoals[wk].push('');
+  persist(); render();
+}
+function updGoal(wk,i,v) { if(S.weeklyGoals[wk]){S.weeklyGoals[wk][i]=v; persist();} }
+function rmGoal(wk,i) { if(S.weeklyGoals[wk]){S.weeklyGoals[wk].splice(i,1); persist(); render();} }
+
+/* ================================================================
+   DRAG & DROP
+   ================================================================ */
+function todoDragStart(event,id) {
+  event.dataTransfer.setData('text/plain',id);
+  event.dataTransfer.effectAllowed='copy';
+  const ghost=document.getElementById('dragGhost');
+  const todo=S.todos.find(t=>t.id===id);
+  if(todo){ghost.textContent=todo.title; event.dataTransfer.setDragImage(ghost,0,0);}
+  setTimeout(()=>event.target.classList.add('dragging'),0);
+}
+
+function slotDrop(event,time,type) {
+  event.preventDefault(); event.stopPropagation();
+  event.currentTarget.classList.remove('drag-over');
+  const id=event.dataTransfer.getData('text/plain');
+  const todo=S.todos.find(t=>t.id===id);
+  if(!todo) return;
+  const sm=timeToMin(time), dur=todo.estimatedMinutes||60;
+  const em=Math.min(sm+dur,SLOT1);
+  const ds=dateStr(S.date), e=entry(ds);
+  e.plans.push({id:uid(),start:time,end:minToTime(em),title:todo.title,type,pri:0});
+  persist(); render();
+  toast(`"${todo.title}" 추가됨`);
+}
+
+function calDrop(event,ds) {
+  event.preventDefault(); event.stopPropagation();
+  event.currentTarget.classList.remove('drag-over');
+  const id=event.dataTransfer.getData('text/plain');
+  if(!S.todos.find(t=>t.id===id)) return;
+  S.date=parseDate(ds); switchView('daily');
+  toast(`${ds}로 이동 - 시간 슬롯에 배치해주세요`);
+}
+
+/* ================================================================
+   SCHEDULE MODAL
+   ================================================================ */
+function populateTimeOpts() {
+  const ss=document.getElementById('modalStart'), se=document.getElementById('modalEnd');
+  let h='';
+  for(let m=SLOT0;m<=SLOT1;m+=SLOTD) h+=`<option value="${minToTime(m)}">${minToTime(m)}</option>`;
+  ss.innerHTML=h; se.innerHTML=h;
+}
+
+function openAdd(time,type) {
+  S.editingId=null;
+  document.getElementById('modalTitle').textContent='일정 추가';
+  document.getElementById('modalTitleInput').value='';
+  document.getElementById('modalStart').value=time;
+  document.getElementById('modalEnd').value=minToTime(Math.min(timeToMin(time)+60,SLOT1));
+  document.getElementById('modalType').value=type;
+  document.getElementById('modalPriority').value='0';
+  document.getElementById('modalDeleteBtn').style.display='none';
+  document.getElementById('scheduleModal').classList.add('active');
+  setTimeout(()=>document.getElementById('modalTitleInput').focus(),100);
+}
+
+function editItem(id) {
+  const ds=dateStr(S.date), e=entry(ds);
+  const it=e.plans.find(p=>p.id===id);
+  if(!it) return;
+  S.editingId=id;
+  document.getElementById('modalTitle').textContent='일정 수정';
+  document.getElementById('modalTitleInput').value=it.title;
+  document.getElementById('modalStart').value=it.start;
+  document.getElementById('modalEnd').value=it.end;
+  document.getElementById('modalType').value=it.type;
+  document.getElementById('modalPriority').value=String(it.pri||0);
+  document.getElementById('modalDeleteBtn').style.display='inline-block';
+  document.getElementById('scheduleModal').classList.add('active');
+  setTimeout(()=>document.getElementById('modalTitleInput').focus(),100);
+}
+
+function saveSchedule() {
+  const title=document.getElementById('modalTitleInput').value.trim();
+  const start=document.getElementById('modalStart').value;
+  const end=document.getElementById('modalEnd').value;
+  const type=document.getElementById('modalType').value;
+  const pri=parseInt(document.getElementById('modalPriority').value)||0;
+  if(!title){toast('제목을 입력해주세요');return;}
+  if(timeToMin(start)>=timeToMin(end)){toast('종료 시간이 시작보다 커야 합니다');return;}
+
+  const ds=dateStr(S.date), e=entry(ds);
+  if(S.editingId) {
+    const it=e.plans.find(p=>p.id===S.editingId);
+    if(it){it.title=title;it.start=start;it.end=end;it.type=type;it.pri=pri;}
+  } else {
+    e.plans.push({id:uid(),start,end,title,type,pri});
+  }
+  persist(); closeModal(); render();
+  toast('저장되었습니다');
+}
+
+function deleteSchedule() {
+  if(!S.editingId||!confirm('이 일정을 삭제하시겠습니까?')) return;
+  const ds=dateStr(S.date), e=entry(ds);
+  e.plans=e.plans.filter(p=>p.id!==S.editingId);
+  persist(); closeModal(); render();
+  toast('삭제되었습니다');
+}
+
+function closeModal() {
+  document.getElementById('scheduleModal').classList.remove('active');
+  S.editingId=null;
+}
+
+/* ================================================================
+   TODO PANEL TOGGLE
+   ================================================================ */
+function toggleTodoPanel() {
+  const panel=document.getElementById('todoPanel');
+  const toggle=document.getElementById('todoToggle');
+  panel.classList.toggle('collapsed');
+  const collapsed=panel.classList.contains('collapsed');
+  toggle.textContent=collapsed?'▶':'◀';
+  toggle.classList.toggle('at-open',!collapsed);
+  toggle.classList.toggle('at-closed',collapsed);
+}
+
+function toggleMobileTodo() {
+  document.getElementById('todoPanel').classList.toggle('mobile-show');
+}
+
+/* ================================================================
+   SETTINGS
+   ================================================================ */
+function showSettings() {
+  const cfg=JSON.parse(localStorage.getItem('fb_config')||'{}');
+  document.getElementById('fbApiKey').value=cfg.apiKey||'';
+  document.getElementById('fbAuthDomain').value=cfg.authDomain||'';
+  document.getElementById('fbProjectId').value=cfg.projectId||'';
+  document.getElementById('fbStorageBucket').value=cfg.storageBucket||'';
+  document.getElementById('fbMsgSenderId').value=cfg.messagingSenderId||'';
+  document.getElementById('fbAppId').value=cfg.appId||'';
+  document.getElementById('settingsModal').classList.add('active');
+}
+function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
+
+function saveFirebaseConfig() {
+  const cfg={
+    apiKey:document.getElementById('fbApiKey').value.trim(),
+    authDomain:document.getElementById('fbAuthDomain').value.trim(),
+    projectId:document.getElementById('fbProjectId').value.trim(),
+    storageBucket:document.getElementById('fbStorageBucket').value.trim(),
+    messagingSenderId:document.getElementById('fbMsgSenderId').value.trim(),
+    appId:document.getElementById('fbAppId').value.trim()
+  };
+  if(!cfg.apiKey||!cfg.projectId){toast('apiKey와 projectId는 필수');return;}
+  localStorage.setItem('fb_config',JSON.stringify(cfg));
+  toast('Firebase 설정 저장됨. 새로고침합니다.');
+  setTimeout(()=>location.reload(),1000);
+}
+
+function clearFirebaseConfig() {
+  localStorage.removeItem('fb_config');
+  S.fbReady=false; S.user=null; updateAuthUI();
+  toast('Firebase 해제됨');
+}
+
+/* ================================================================
+   EXPORT / IMPORT
+   ================================================================ */
+function exportData() {
+  const data={entries:S.entries,todos:S.todos,weeklyGoals:S.weeklyGoals,exportedAt:new Date().toISOString()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`planner-${dateStr(new Date())}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('내보내기 완료');
+}
+
+function importData(event) {
+  const file=event.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=(e)=>{
+    try{
+      const d=JSON.parse(e.target.result);
+      if(d.entries) S.entries=d.entries;
+      if(d.todos) S.todos=d.todos;
+      if(d.weeklyGoals) S.weeklyGoals=d.weeklyGoals;
+      persist(); render();
+      toast('가져오기 완료');
+    }catch(err){toast('잘못된 파일');}
+  };
+  r.readAsText(file);
+  event.target.value='';
+}
+
+/* ================================================================
+   FIREBASE
+   ================================================================ */
+function initFB() {
+  const raw=localStorage.getItem('fb_config');
+  if(!raw) return;
+  try{
+    const cfg=JSON.parse(raw);
+    if(!cfg.apiKey||!cfg.projectId) return;
+    const s1=document.createElement('script');
+    s1.src='https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js';
+    s1.onload=()=>{
+      const s2=document.createElement('script');
+      s2.src='https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js';
+      s2.onload=()=>{
+        const s3=document.createElement('script');
+        s3.src='https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js';
+        s3.onload=()=>{
+          firebase.initializeApp(cfg);
+          S.fbReady=true;
+          firebase.auth().onAuthStateChanged(u=>{
+            S.user=u; updateAuthUI();
+            if(u){fbPull();fbListen();}
+          });
+        };
+        document.head.appendChild(s3);
+      };
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(s1);
+  }catch(e){console.error(e);}
+}
+
+function handleAuth() {
+  if(!S.fbReady){toast('설정에서 Firebase를 구성해주세요');showSettings();return;}
+  if(S.user){
+    if(confirm('로그아웃하시겠습니까?')){
+      firebase.auth().signOut(); S.user=null; updateAuthUI();
+      S.unsubs.forEach(fn=>fn()); S.unsubs=[];
+    }
+  } else {
+    firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>toast('로그인 실패'));
+  }
+}
+
+function updateAuthUI() {
+  const btn=document.getElementById('authBtn');
+  btn.textContent=S.user?(S.user.displayName||'로그아웃'):'로그인';
+}
+
+function fbSync() {
+  if(!S.fbReady||!S.user) return;
+  const db=firebase.firestore(), u=S.user.uid;
+  for(const[date,ent]of Object.entries(S.entries)){
+    if(ent.plans&&ent.plans.length){
+      db.collection('users').doc(u).collection('entries').doc(date).set(ent,{merge:true}).catch(console.error);
+    }
+  }
+  db.collection('users').doc(u).collection('data').doc('todos').set({items:S.todos},{merge:true}).catch(console.error);
+  db.collection('users').doc(u).collection('data').doc('goals').set(S.weeklyGoals,{merge:true}).catch(console.error);
+}
+
+function fbPull() {
+  if(!S.fbReady||!S.user) return;
+  const db=firebase.firestore(), u=S.user.uid;
+  db.collection('users').doc(u).collection('entries').get().then(snap=>{
+    snap.forEach(doc=>{
+      const d=doc.data(),loc=S.entries[doc.id];
+      if(!loc||(d.plans&&d.plans.length>=(loc.plans||[]).length)) S.entries[doc.id]=d;
+    });
+    save(); render();
+  });
+  db.collection('users').doc(u).collection('data').doc('todos').get().then(doc=>{
+    if(doc.exists&&doc.data().items){const r=doc.data().items;if(r.length>=S.todos.length){S.todos=r;save();renderTodos();}}
+  });
+  db.collection('users').doc(u).collection('data').doc('goals').get().then(doc=>{
+    if(doc.exists){S.weeklyGoals={...S.weeklyGoals,...doc.data()};save();}
+  });
+}
+
+function fbListen() {
+  if(!S.fbReady||!S.user) return;
+  const db=firebase.firestore(), u=S.user.uid;
+  S.unsubs.push(db.collection('users').doc(u).collection('entries').onSnapshot(snap=>{
+    snap.docChanges().forEach(ch=>{if(ch.type==='added'||ch.type==='modified')S.entries[ch.doc.id]=ch.doc.data();});
+    save(); render();
+  }));
+  S.unsubs.push(db.collection('users').doc(u).collection('data').doc('todos').onSnapshot(doc=>{
+    if(doc.exists&&doc.data().items){S.todos=doc.data().items;save();renderTodos();}
+  }));
+}
+
+/* ================================================================
+   MOBILE TOUCH DRAG & DROP
+   ================================================================ */
+function initTouch() {
+  let dragTodo=null, ghost=null;
+
+  document.addEventListener('touchstart',e=>{
+    const item=e.target.closest('.todo-item');
+    if(!item) return;
+    dragTodo=S.todos.find(t=>t.id===item.dataset.todoId);
+    if(!dragTodo) return;
+    ghost=document.createElement('div');
+    ghost.className='drag-ghost';
+    ghost.textContent=dragTodo.title;
+    ghost.style.position='fixed';ghost.style.zIndex='999';ghost.style.pointerEvents='none';
+    document.body.appendChild(ghost);
+  },{passive:true});
+
+  document.addEventListener('touchmove',e=>{
+    if(!ghost||!dragTodo) return;
+    const t=e.touches[0];
+    ghost.style.left=t.clientX+'px';ghost.style.top=(t.clientY-20)+'px';ghost.style.display='block';
+    document.querySelectorAll('.drag-over').forEach(d=>d.classList.remove('drag-over'));
+    const el=document.elementFromPoint(t.clientX,t.clientY);
+    if(el){
+      const slot=el.closest('.slot-row'), cell=el.closest('.calendar-cell,.weekly-day-cell');
+      if(slot)slot.classList.add('drag-over'); else if(cell)cell.classList.add('drag-over');
+    }
+  },{passive:true});
+
+  document.addEventListener('touchend',e=>{
+    if(!ghost||!dragTodo){return;}
+    const t=e.changedTouches[0];
+    document.querySelectorAll('.drag-over').forEach(d=>d.classList.remove('drag-over'));
+    const el=document.elementFromPoint(t.clientX,t.clientY);
+    if(el){
+      const slot=el.closest('.slot-row'), cell=el.closest('.calendar-cell,.weekly-day-cell');
+      if(slot&&slot.dataset.time&&slot.dataset.type){
+        const sm=timeToMin(slot.dataset.time), dur=dragTodo.estimatedMinutes||60;
+        const em=Math.min(sm+dur,SLOT1);
+        entry(dateStr(S.date)).plans.push({id:uid(),start:slot.dataset.time,end:minToTime(em),title:dragTodo.title,type:slot.dataset.type,pri:0});
+        persist();render();toast(`"${dragTodo.title}" 추가됨`);
+      } else if(cell&&cell.dataset.date){
+        S.date=parseDate(cell.dataset.date);switchView('daily');
+        toast(`${cell.dataset.date}로 이동`);
+      }
+    }
+    ghost.remove(); ghost=null; dragTodo=null;
+  });
+}
+
+/* ================================================================
+   SEARCH
+   ================================================================ */
+function openSearch() {
+  document.getElementById('searchModal').classList.add('active');
+  document.getElementById('searchInput').value='';
+  document.getElementById('searchResults').innerHTML='<div class="search-empty">검색어를 입력하세요</div>';
+  document.getElementById('searchCount').textContent='';
+  setTimeout(()=>document.getElementById('searchInput').focus(),100);
+}
+function closeSearch() { document.getElementById('searchModal').classList.remove('active'); }
+
+function doSearch(q) {
+  const wrap=document.getElementById('searchResults');
+  const countEl=document.getElementById('searchCount');
+  q=q.trim().toLowerCase();
+  if(!q){wrap.innerHTML='<div class="search-empty">검색어를 입력하세요</div>';countEl.textContent='';return;}
+
+  const results=[];
+
+  // Search entries (schedules + memos)
+  for(const[date,ent]of Object.entries(S.entries)){
+    if(!ent) continue;
+    // Schedules
+    if(ent.plans){
+      for(const p of ent.plans){
+        if(p.title.toLowerCase().includes(q)){
+          results.push({
+            type:p.type, date, title:p.title,
+            snippet:`${p.start}-${p.end}`,
+            sort:date+p.start
+          });
+        }
+      }
+    }
+    // Memos
+    if(ent.memo&&ent.memo.toLowerCase().includes(q)){
+      const idx=ent.memo.toLowerCase().indexOf(q);
+      const start=Math.max(0,idx-20);
+      const snip=ent.memo.substring(start,start+80);
+      results.push({
+        type:'memo', date, title:'일간 메모',
+        snippet:snip,
+        sort:date+'99:99'
+      });
+    }
+  }
+
+  // Search todos
+  for(const t of S.todos){
+    if(t.title.toLowerCase().includes(q)){
+      results.push({
+        type:'todo', date:null, title:t.title,
+        snippet:t.completed?'완료됨':(t.estimatedMinutes?t.estimatedMinutes+'분 예상':'미완료'),
+        sort:'9999'+t.title
+      });
+    }
+  }
+
+  // Search weekly goals
+  for(const[wk,goals]of Object.entries(S.weeklyGoals)){
+    for(const g of goals){
+      if(g&&g.toLowerCase().includes(q)){
+        results.push({
+          type:'memo', date:null, title:'주간 목표',
+          snippet:`[${wk}] ${g}`,
+          sort:'9998'+wk
+        });
+      }
+    }
+  }
+
+  // Sort: most recent first
+  results.sort((a,b)=>b.sort.localeCompare(a.sort));
+
+  countEl.textContent=results.length?`${results.length}개 결과`:'';
+
+  if(!results.length){
+    wrap.innerHTML='<div class="search-empty">검색 결과가 없습니다</div>';
+    return;
+  }
+
+  let h='';
+  for(const r of results.slice(0,50)){
+    const typeLabel = r.type==='plan'?'계획':r.type==='actual'?'실행':r.type==='memo'?'메모':'할 일';
+    const typeClass = r.type==='plan'?'plan-type':r.type==='actual'?'actual-type':r.type==='memo'?'memo-type':'todo-type';
+    const dateLabel = r.date?formatDateLabel(r.date):'';
+    const highlighted = highlightMatch(r.snippet,q);
+    const titleHL = highlightMatch(r.title,q);
+
+    const onclick = r.date ? `onclick="closeSearch();goDate('${r.date}')"` :
+                    r.type==='todo' ? `onclick="closeSearch()"` : '';
+
+    h+=`<div class="search-result-item" ${onclick}>
+      <div class="search-result-date">
+        <span class="result-type ${typeClass}">${typeLabel}</span>
+        ${dateLabel?`<span>${dateLabel}</span>`:''}
+      </div>
+      <div class="search-result-title">${titleHL}</div>
+      <div class="search-result-snippet">${highlighted}</div>
+    </div>`;
+  }
+  if(results.length>50) h+=`<div class="search-empty">외 ${results.length-50}개 결과...</div>`;
+  wrap.innerHTML=h;
+}
+
+function highlightMatch(text,q) {
+  if(!q) return escHtml(text);
+  const safe=escHtml(text);
+  const qEsc=q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return safe.replace(new RegExp('('+qEsc+')','gi'),'<mark>$1</mark>');
+}
+
+function formatDateLabel(ds) {
+  const d=parseDate(ds);
+  return `${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()} (${DAYS[d.getDay()]})`;
+}
+
+/* ================================================================
+   KEYBOARD SHORTCUTS
+   ================================================================ */
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){closeModal();closeSettings();closeSearch();return;}
+  if(e.ctrlKey&&e.key==='k'){e.preventDefault();openSearch();return;}
+  if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
+  if(e.key==='ArrowLeft')nav(-1);
+  if(e.key==='ArrowRight')nav(1);
+  if(e.key==='1')switchView('monthly');
+  if(e.key==='2')switchView('weekly');
+  if(e.key==='3')switchView('daily');
+  if(e.key==='4')switchView('report');
+  if(e.key==='t'||e.key==='T')goToday();
+});
+
+// Close modals on overlay click
+document.getElementById('scheduleModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
+document.getElementById('settingsModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeSettings();});
+document.getElementById('searchModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeSearch();});
+
+/* ================================================================
+   INIT
+   ================================================================ */
+function init() {
+  populateTimeOpts();
+  load();
+  initFB();
+  updateAuthUI();
+  render();
+  initTouch();
+}
+
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
