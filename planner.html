@@ -981,7 +981,8 @@ function renderMonthly() {
       const maxShow=3;
       h+=`<div class="cell-entries">`;
       for(const it of sorted.slice(0,maxShow)) {
-        h+=`<div class="cell-entry ${it.type}${priClass(it.pri)}">${priDot(it.pri)}${it.start?`<span class="ce-time">${shortTime(it.start)}</span> `:''}${escHtml(summarize(it.title))}</div>`;
+        h+=`<div class="cell-entry ${it.type}${priClass(it.pri)}" draggable="true"
+             ondragstart="entryDragStart(event,'${ds}','${it.id}')">${priDot(it.pri)}${it.start?`<span class="ce-time">${shortTime(it.start)}</span> `:''}${escHtml(summarize(it.title))}</div>`;
       }
       if(sorted.length>maxShow) h+=`<div class="cell-more">+${sorted.length-maxShow}</div>`;
       h+=`</div>`;
@@ -1037,7 +1038,8 @@ function renderWeekly() {
          ondrop="calDrop(event,'${ds}')">`;
     const sorted=[...items].sort((a,b)=>(a.start?timeToMin(a.start):Infinity)-(b.start?timeToMin(b.start):Infinity));
     for(const it of sorted.slice(0,8)) {
-      h+=`<div class="weekly-entry ${it.type}${priClass(it.pri)}">${priDot(it.pri)}${it.start?shortTime(it.start)+' ':''}${escHtml(summarize(it.title))}</div>`;
+      h+=`<div class="weekly-entry ${it.type}${priClass(it.pri)}" draggable="true"
+           ondragstart="entryDragStart(event,'${ds}','${it.id}')">${priDot(it.pri)}${it.start?shortTime(it.start)+' ':''}${escHtml(summarize(it.title))}</div>`;
     }
     if(sorted.length>8) h+=`<div style="color:var(--text-secondary);font-size:10px;padding:2px">+${sorted.length-8}</div>`;
     h+=`</div>`;
@@ -1485,6 +1487,16 @@ function planBlockDragStart(event,id) {
   event.stopPropagation();
 }
 
+function entryDragStart(event,fromDate,itemId) {
+  event.dataTransfer.setData('text/plain','entry:'+fromDate+':'+itemId);
+  event.dataTransfer.effectAllowed='move';
+  const ghost=document.getElementById('dragGhost');
+  const ent=S.entries[fromDate];
+  const it=ent&&ent.plans.find(p=>p.id===itemId);
+  if(it){ghost.textContent=it.title; event.dataTransfer.setDragImage(ghost,0,0);}
+  event.stopPropagation();
+}
+
 function slotDrop(event,time,type) {
   event.preventDefault(); event.stopPropagation();
   event.currentTarget.classList.remove('drag-over');
@@ -1546,12 +1558,30 @@ function slotDrop(event,time,type) {
 function calDrop(event,ds) {
   event.preventDefault(); event.stopPropagation();
   event.currentTarget.classList.remove('drag-over');
-  const id=event.dataTransfer.getData('text/plain');
-  const todo=S.todos.find(t=>t.id===id);
+  const data=event.dataTransfer.getData('text/plain');
+
+  // Handle entry move between dates
+  if(data.startsWith('entry:')) {
+    const parts=data.split(':');
+    const fromDate=parts[1], itemId=parts[2];
+    if(fromDate===ds) return; // 같은 날이면 무시
+    const src=entry(fromDate);
+    const idx=src.plans.findIndex(p=>p.id===itemId);
+    if(idx<0) return;
+    const item=src.plans.splice(idx,1)[0];
+    entry(ds).plans.push(item);
+    markModified(fromDate); markModified(ds);
+    persist(); render();
+    toast(`"${item.title}" → ${ds}로 이동`);
+    return;
+  }
+
+  // Handle todo drop
+  const todo=S.todos.find(t=>t.id===data);
   if(!todo) return;
   const e=entry(ds);
   e.plans.push({id:uid(),start:'',end:'',title:todo.title,type:'plan',pri:0,est:todo.estimatedMinutes||0});
-  S.todos=S.todos.filter(t=>t.id!==id);
+  S.todos=S.todos.filter(t=>t.id!==data);
   markModified(ds);
   persist(); render();
   toast(`"${todo.title}" ${ds}에 추가됨 (시간 미지정)`);
@@ -1883,7 +1913,7 @@ function fbListen() {
    MOBILE TOUCH DRAG & DROP
    ================================================================ */
 function initTouch() {
-  let dragTodo=null, dragUnsched=null, dragPlanBlock=null, ghost=null;
+  let dragTodo=null, dragUnsched=null, dragPlanBlock=null, dragEntry=null, ghost=null;
 
   document.addEventListener('touchstart',e=>{
     // Todo item drag
@@ -1940,10 +1970,36 @@ function initTouch() {
         document.body.appendChild(ghost);
       }
     }
+    // Weekly entry drag
+    const weeklyEntry=e.target.closest('.weekly-entry');
+    if(weeklyEntry&&!ghost) {
+      const cell=weeklyEntry.closest('.weekly-day-cell');
+      if(cell&&cell.dataset.date) {
+        const fromDate=cell.dataset.date;
+        const ent=S.entries[fromDate];
+        if(ent&&ent.plans) {
+          // Find item by matching title text
+          const titleText=weeklyEntry.textContent.trim();
+          const planItems=ent.plans.filter(p=>p.type==='plan');
+          const match=planItems.find(p=>{
+            const display=(p.start?shortTime(p.start)+' ':'')+summarize(p.title);
+            return titleText.includes(summarize(p.title));
+          });
+          if(match) {
+            dragEntry={fromDate,item:match};
+            ghost=document.createElement('div');
+            ghost.className='drag-ghost';
+            ghost.textContent=match.title;
+            ghost.style.position='fixed';ghost.style.zIndex='999';ghost.style.pointerEvents='none';
+            document.body.appendChild(ghost);
+          }
+        }
+      }
+    }
   },{passive:true});
 
   document.addEventListener('touchmove',e=>{
-    if(!ghost||(! dragTodo&&!dragUnsched&&!dragPlanBlock)) return;
+    if(!ghost||(!dragTodo&&!dragUnsched&&!dragPlanBlock&&!dragEntry)) return;
     const t=e.touches[0];
     ghost.style.left=t.clientX+'px';ghost.style.top=(t.clientY-20)+'px';ghost.style.display='block';
     document.querySelectorAll('.drag-over').forEach(d=>d.classList.remove('drag-over'));
@@ -1955,7 +2011,7 @@ function initTouch() {
   },{passive:true});
 
   document.addEventListener('touchend',e=>{
-    if(!ghost||(!dragTodo&&!dragUnsched&&!dragPlanBlock)){return;}
+    if(!ghost||(!dragTodo&&!dragUnsched&&!dragPlanBlock&&!dragEntry)){return;}
     const t=e.changedTouches[0];
     document.querySelectorAll('.drag-over').forEach(d=>d.classList.remove('drag-over'));
     const el=document.elementFromPoint(t.clientX,t.clientY);
@@ -2008,9 +2064,23 @@ function initTouch() {
         S.todos=S.todos.filter(t=>t.id!==dragTodo.id);
         markModified(_ds2);
         persist();render();toast(`"${dragTodo.title}" ${_ds2}에 추가됨 (시간 미지정)`);
+      } else if(dragEntry&&cell&&cell.dataset.date) {
+        // Weekly entry → different day cell: move
+        const toDate=cell.dataset.date;
+        if(toDate!==dragEntry.fromDate) {
+          const src=entry(dragEntry.fromDate);
+          const idx=src.plans.findIndex(p=>p.id===dragEntry.item.id);
+          if(idx>=0) {
+            const item=src.plans.splice(idx,1)[0];
+            entry(toDate).plans.push(item);
+            markModified(dragEntry.fromDate); markModified(toDate);
+            persist(); render();
+            toast(`"${item.title}" → ${toDate}로 이동`);
+          }
+        }
       }
     }
-    ghost.remove(); ghost=null; dragTodo=null; dragUnsched=null; dragPlanBlock=null;
+    ghost.remove(); ghost=null; dragTodo=null; dragUnsched=null; dragPlanBlock=null; dragEntry=null;
   });
 }
 
