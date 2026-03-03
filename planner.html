@@ -976,7 +976,8 @@ function renderMonthly() {
          ondrop="calDrop(event,'${ds}')">
       <div class="cell-date ${dc}">${cd.getDate()}${hasMemo?'<span style="font-size:9px" title="메모 있음"> 📝</span>':''}</div>`;
     if(!other&&ent&&ent.plans&&ent.plans.length) {
-      const sorted=[...ent.plans].sort((a,b)=>(a.start?timeToMin(a.start):Infinity)-(b.start?timeToMin(b.start):Infinity));
+      const plansOnly=ent.plans.filter(p=>p.type==='plan');
+      const sorted=[...plansOnly].sort((a,b)=>(a.start?timeToMin(a.start):Infinity)-(b.start?timeToMin(b.start):Infinity));
       const maxShow=3;
       h+=`<div class="cell-entries">`;
       for(const it of sorted.slice(0,maxShow)) {
@@ -1029,7 +1030,7 @@ function renderWeekly() {
   }
 
   for(const d of days) {
-    const ds=dateStr(d), ent=S.entries[ds], items=ent?ent.plans:[];
+    const ds=dateStr(d), ent=S.entries[ds], items=ent?(ent.plans||[]).filter(p=>p.type==='plan'):[];
     h+=`<div class="weekly-day-cell" onclick="goDate('${ds}')" data-date="${ds}"
          ondragover="event.preventDefault();this.classList.add('drag-over')"
          ondragleave="this.classList.remove('drag-over')"
@@ -1388,7 +1389,7 @@ function showTodoInput(event) {
   form.innerHTML=`
     <div class="todo-inline-row">
       <input type="text" class="todo-inline-title" placeholder="할 일 입력...">
-      <input type="number" class="todo-inline-time" placeholder="분" min="0" step="30">
+      <input type="number" class="todo-inline-time" placeholder="분" min="0" step="10">
     </div>`;
   placeholder.replaceWith(form);
 
@@ -1554,7 +1555,7 @@ function calDrop(event,ds) {
 function populateTimeOpts() {
   const ss=document.getElementById('modalStart'), se=document.getElementById('modalEnd');
   let h='<option value="">시간 미지정</option>';
-  for(let m=SLOT0;m<=SLOT1;m+=SLOTD) h+=`<option value="${minToTime(m)}">${minToTime(m)}</option>`;
+  for(let m=SLOT0;m<=SLOT1;m+=10) h+=`<option value="${minToTime(m)}">${minToTime(m)}</option>`;
   ss.innerHTML=h; se.innerHTML=h;
 }
 
