@@ -1152,7 +1152,7 @@ function renderMonthly() {
 
         h+=`<div class="cell-entry ${it.type}${priClass(it.pri)}"${tip} draggable="true"
              onclick="goDate('${ds}')"
-             ondragstart="entryDragStart(event,'${ds}','${it.id}')">${it.start?`<span class="ce-time">${shortTime(it.start)}</span> `:''}${label}</div>`;
+             ondragstart="entryDragStart(event,'${ds}','${it.id}')">${label}</div>`;
       }
       h+=`</div>`;
       if(mr) h+=`<div class="cell-match-bar" style="background:${matchColor(mr.avgRate)};width:${mr.avgRate}%"></div>`;
