@@ -171,6 +171,12 @@ body {
 .todo-item .todo-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .todo-item .todo-title.completed { text-decoration: line-through; color: var(--text-secondary); }
 .todo-item .todo-time { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+.todo-item .todo-edit {
+  background: none; border: none; color: var(--text-secondary);
+  cursor: pointer; font-size: 12px; padding: 2px; opacity: 0; transition: var(--transition);
+}
+.todo-item:hover .todo-edit { opacity: 1; }
+.todo-item .todo-edit:hover { color: var(--primary); }
 .todo-item .todo-delete {
   background: none; border: none; color: var(--text-secondary);
   cursor: pointer; font-size: 14px; padding: 2px; opacity: 0; transition: var(--transition);
@@ -1424,6 +1430,7 @@ function renderTodos() {
          ondragstart="todoDragStart(event,'${t.id}')">
       <span class="todo-title">${escHtml(t.title)}</span>
       ${t.estimatedMinutes?`<span class="todo-time">${t.estimatedMinutes}분</span>`:''}
+      <button class="todo-edit" onclick="event.stopPropagation();todoEdit('${t.id}')">✎</button>
       <button class="todo-delete" onclick="todoDel('${t.id}')">✕</button>
     </div>`;
   }
@@ -1502,6 +1509,48 @@ function todoToggle(id) {
 function todoDel(id) {
   S.todos=S.todos.filter(x=>x.id!==id);
   persist(); renderTodos();
+}
+
+function todoEdit(id) {
+  const t=S.todos.find(x=>x.id===id);
+  if(!t) return;
+  const el=document.querySelector(`.todo-item[data-todo-id="${id}"]`);
+  if(!el) return;
+  const form=document.createElement('div');
+  form.className='todo-inline-form';
+  form.innerHTML=`
+    <div class="todo-inline-row">
+      <input type="text" class="todo-inline-title" value="${escHtml(t.title)}">
+      <input type="number" class="todo-inline-time" placeholder="분" min="0" step="10" value="${t.estimatedMinutes||''}">
+    </div>`;
+  el.replaceWith(form);
+  const titleInput=form.querySelector('.todo-inline-title');
+  const timeInput=form.querySelector('.todo-inline-time');
+  titleInput.focus();
+  titleInput.select();
+  let submitted=false;
+  function submit() {
+    if(submitted) return;
+    submitted=true;
+    const title=titleInput.value.trim();
+    if(title) {
+      t.title=title;
+      t.estimatedMinutes=parseInt(timeInput.value)||0;
+      persist();
+    }
+    renderTodos();
+  }
+  function handleKeydown(e) {
+    if(e.key==='Enter') { e.preventDefault(); submit(); }
+    else if(e.key==='Escape') { renderTodos(); }
+  }
+  titleInput.addEventListener('keydown',handleKeydown);
+  timeInput.addEventListener('keydown',handleKeydown);
+  form.addEventListener('focusout', (e) => {
+    setTimeout(()=>{
+      if(!form.contains(document.activeElement)) submit();
+    },100);
+  });
 }
 
 /* ================================================================
