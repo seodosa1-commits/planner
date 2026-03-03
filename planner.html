@@ -245,6 +245,9 @@ body {
   display: grid; grid-template-columns: repeat(7, 1fr);
   border-left: 1px solid var(--border-light);
 }
+.weekly-day { display: contents; }
+.weekly-day > .weekly-day-header { grid-row: 1; }
+.weekly-day > .weekly-day-cell { grid-row: 2; }
 .weekly-day-header {
   padding: 8px 4px; text-align: center; font-size: 12px; font-weight: 600;
   border-right: 1px solid var(--border-light);
@@ -557,7 +560,17 @@ body {
   .cell-entry { font-size: 9px; }
   .cell-entries { gap: 0; }
   .cell-date { font-size: 11px; }
-  .weekly-day-cell { min-height: 100px; font-size: 10px; }
+  .weekly-grid { display: flex; flex-direction: column; }
+  .weekly-day { display: block; border-bottom: 2px solid var(--border); }
+  .weekly-day > .weekly-day-header {
+    grid-row: auto; display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-right: none;
+  }
+  .weekly-day > .weekly-day-header .wdate { font-size: 18px; }
+  .weekly-day > .weekly-day-cell {
+    grid-row: auto; min-height: auto; padding: 8px 12px;
+    border-right: none; border-bottom: none;
+  }
   .time-label-cell { font-size: 10px; padding: 0 3px; }
   .report-summary { grid-template-columns: repeat(2, 1fr); }
   .modal { width: 95%; padding: 16px; }
@@ -1025,15 +1038,14 @@ function renderWeekly() {
 
   for(const d of days) {
     const ds=dateStr(d), mr=matchRate(ds);
-    h+=`<div class="weekly-day-header ${ds===today?'today':''}">
+    const ent=S.entries[ds], items=ent?(ent.plans||[]).filter(p=>p.type==='plan'):[];
+    const actTitles=new Set(ent?(ent.plans||[]).filter(p=>p.type==='actual').map(p=>p.title.trim().toLowerCase()):[]);
+
+    h+=`<div class="weekly-day">`;
+    h+=`<div class="weekly-day-header ${ds===today?'today':''}" onclick="goDate('${ds}')">
       <div class="wday">${DAYS[d.getDay()]}</div><div class="wdate">${d.getDate()}</div>
       ${mr?`<div class="wmatch" style="color:${matchColor(mr.avgRate)}">${mr.avgRate}%</div>`:''}
     </div>`;
-  }
-
-  for(const d of days) {
-    const ds=dateStr(d), ent=S.entries[ds], items=ent?(ent.plans||[]).filter(p=>p.type==='plan'):[];
-    const actTitles=new Set(ent?(ent.plans||[]).filter(p=>p.type==='actual').map(p=>p.title.trim().toLowerCase()):[]);
     h+=`<div class="weekly-day-cell" onclick="goDate('${ds}')" data-date="${ds}"
          ondragover="event.preventDefault();this.classList.add('drag-over')"
          ondragleave="this.classList.remove('drag-over')"
@@ -1047,7 +1059,7 @@ function renderWeekly() {
            ondragstart="entryDragStart(event,'${ds}','${it.id}')">${priDot(it.pri)}${it.start?shortTime(it.start)+' ':''}${escHtml(summarize(it.title))}</div>`;
     }
     if(sorted.length>8) h+=`<div style="color:var(--text-secondary);font-size:10px;padding:2px">+${sorted.length-8}</div>`;
-    h+=`</div>`;
+    h+=`</div></div>`;
   }
 
   h+=`</div><div class="weekly-summary">
