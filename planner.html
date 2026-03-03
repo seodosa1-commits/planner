@@ -986,7 +986,7 @@ function goDate(ds) { S.date=parseDate(ds); switchView('daily'); }
 function render() {
   const m=document.getElementById('mainContent');
   // 일간 뷰에서 메모 textarea 포커스 상태 보존
-  let memoFocused=false, memoVal='', memoSel=[0,0];
+  let memoFocused=false, memoVal='', memoSel=[0,0], savedScrollTop=null;
   if(S.view==='daily'){
     const ta=document.getElementById('dailyMemo');
     if(ta&&document.activeElement===ta){
@@ -994,6 +994,8 @@ function render() {
       memoVal=ta.value;
       memoSel=[ta.selectionStart,ta.selectionEnd];
     }
+    const tw=document.querySelector('.daily-timeline-wrapper');
+    if(tw) savedScrollTop=tw.scrollTop;
   }
   switch(S.view) {
     case 'monthly': m.innerHTML=renderMonthly(); break;
@@ -1010,6 +1012,11 @@ function render() {
       ta.selectionStart=memoSel[0];
       ta.selectionEnd=memoSel[1];
     }
+  }
+  // 일간 뷰 스크롤 위치 복원
+  if(savedScrollTop!=null){
+    const tw=document.querySelector('.daily-timeline-wrapper');
+    if(tw) tw.scrollTop=savedScrollTop;
   }
   renderTodos();
 }
