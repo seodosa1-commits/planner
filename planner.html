@@ -340,17 +340,17 @@ body {
 }
 .schedule-block:hover { box-shadow: var(--shadow-lg); z-index: 6; }
 .schedule-block.plan {
-  background: var(--plan-bg); border-left: 3px solid var(--plan-color); color: var(--plan-color);
+  background: rgba(232,240,254,0.85); border-left: 3px solid var(--plan-color); color: var(--plan-color);
 }
 .schedule-block.actual {
-  background: var(--actual-bg); border-left: 3px solid var(--actual-color); color: var(--actual-color);
+  background: rgba(230,244,234,0.85); border-left: 3px solid var(--actual-color); color: var(--actual-color);
 }
 .schedule-block .block-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .schedule-block .block-time { font-size: 10px; opacity: 0.8; }
 /* Priority colors override */
-.schedule-block.pri-3 { background: #FDE8E8; border-left-color: #DC2626; color: #DC2626; }
-.schedule-block.pri-2 { background: #FFF3E0; border-left-color: #E65100; color: #E65100; }
-.schedule-block.pri-1 { background: #FFF8E1; border-left-color: #F9A825; color: #F9A825; }
+.schedule-block.pri-3 { background: rgba(253,232,232,0.85); border-left-color: #DC2626; color: #DC2626; }
+.schedule-block.pri-2 { background: rgba(255,243,224,0.85); border-left-color: #E65100; color: #E65100; }
+.schedule-block.pri-1 { background: rgba(255,248,225,0.85); border-left-color: #F9A825; color: #F9A825; }
 /* .pri-0 = default, uses plan/actual colors */
 .cell-entry.pri-3 { background: #FDE8E8; border-left-color: #DC2626; color: #DC2626; }
 .cell-entry.pri-2 { background: #FFF3E0; border-left-color: #E65100; color: #E65100; }
@@ -835,6 +835,31 @@ const SLOT0=360, SLOT1=1440, SLOTD=30, SLOTH=40; // 06:00-24:00, 30min, 40px
 
 function allSlots() { const r=[]; for(let m=SLOT0;m<SLOT1;m+=SLOTD) r.push(minToTime(m)); return r; }
 
+function calcOverlapLayout(items) {
+  if(!items.length) return [];
+  const sorted=[...items].map((it,i)=>({i,s:timeToMin(it.start),e:timeToMin(it.end)})).sort((a,b)=>a.s-b.s||a.e-b.e);
+  const result=new Array(items.length);
+  const groups=[];
+  let ge=-1;
+  for(const it of sorted) {
+    if(it.s>=ge) { groups.push([]); ge=it.e; }
+    else { ge=Math.max(ge,it.e); }
+    groups[groups.length-1].push(it);
+  }
+  for(const g of groups) {
+    const cols=[];
+    for(const it of g) {
+      let c=0;
+      while(cols[c]&&cols[c]>it.s) c++;
+      cols[c]=it.e;
+      result[it.i]={col:c,total:0};
+    }
+    const total=cols.length;
+    for(const it of g) result[it.i].total=total;
+  }
+  return result;
+}
+
 function toast(msg) {
   const t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
@@ -1148,11 +1173,14 @@ function renderDaily() {
          ondragleave="this.classList.remove('drag-over')"
          ondrop="slotDrop(event,'${sl}','plan')"></div>`;
   }
-  // Plan blocks
-  for(const it of plans) {
+  // Plan blocks (with overlap layout)
+  const planLayout=calcOverlapLayout(plans);
+  for(let i=0;i<plans.length;i++) {
+    const it=plans[i], lay=planLayout[i];
     const top=((timeToMin(it.start)-SLOT0)/SLOTD)*SLOTH;
     const ht=((timeToMin(it.end)-timeToMin(it.start))/SLOTD)*SLOTH;
-    h+=`<div class="schedule-block plan${priClass(it.pri)}" style="top:${top}px;height:${Math.max(ht,20)}px"
+    const lPct=lay.col/lay.total*100, wPct=100/lay.total;
+    h+=`<div class="schedule-block plan${priClass(it.pri)}" style="top:${top}px;height:${Math.max(ht,20)}px;left:${lPct}%;width:${wPct}%;right:auto"
          draggable="true" ondragstart="planBlockDragStart(event,'${it.id}')"
          onclick="editItem('${it.id}')">
       <div class="block-title">${priDot(it.pri)}${escHtml(it.title)}</div>
@@ -1172,11 +1200,14 @@ function renderDaily() {
          ondragleave="this.classList.remove('drag-over')"
          ondrop="slotDrop(event,'${sl}','actual')"></div>`;
   }
-  // Actual blocks
-  for(const it of acts) {
+  // Actual blocks (with overlap layout)
+  const actLayout=calcOverlapLayout(acts);
+  for(let i=0;i<acts.length;i++) {
+    const it=acts[i], lay=actLayout[i];
     const top=((timeToMin(it.start)-SLOT0)/SLOTD)*SLOTH;
     const ht=((timeToMin(it.end)-timeToMin(it.start))/SLOTD)*SLOTH;
-    h+=`<div class="schedule-block actual${priClass(it.pri)}" style="top:${top}px;height:${Math.max(ht,20)}px"
+    const lPct=lay.col/lay.total*100, wPct=100/lay.total;
+    h+=`<div class="schedule-block actual${priClass(it.pri)}" style="top:${top}px;height:${Math.max(ht,20)}px;left:${lPct}%;width:${wPct}%;right:auto"
          onclick="editItem('${it.id}')">
       <div class="block-title">${priDot(it.pri)}${escHtml(it.title)}</div>
       <div class="block-time">${it.start}-${it.end}</div>
