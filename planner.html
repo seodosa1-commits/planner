@@ -990,6 +990,7 @@ function persist() { save(); if(S.fbReady&&S.user) fbSync(); }
    MATCH RATE
    ================================================================ */
 function matchRate(date) {
+  if(date>dateStr(new Date())) return null;
   const e=entry(date);
   if(!e.plans||!e.plans.length) return null;
   const plans=e.plans.filter(p=>p.type==='plan'&&p.start&&p.end);
