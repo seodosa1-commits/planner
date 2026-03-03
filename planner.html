@@ -375,10 +375,7 @@ body {
 .weekly-entry.pri-3 { background: #FDE8E8; border-left-color: #DC2626; color: #DC2626; }
 .weekly-entry.pri-2 { background: #FFF3E0; border-left-color: #E65100; color: #E65100; }
 .weekly-entry.pri-1 { background: #FFF8E1; border-left-color: #F9A825; color: #F9A825; }
-.pri-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
-.pri-dot.d3 { background: #DC2626; }
-.pri-dot.d2 { background: #E65100; }
-.pri-dot.d1 { background: #F9A825; }
+.todo-inline-form .todo-inline-pri { width: 70px; flex: none; padding: 6px 4px; }
 .schedule-block .block-actions {
   position: absolute; top: 2px; right: 2px; display: flex; gap: 2px;
   opacity: 0; transition: var(--transition);
@@ -844,7 +841,6 @@ function shortTime(t) {
 
 // 중요도 CSS 클래스
 function priClass(p) { return p && p > 0 ? ' pri-'+p : ''; }
-function priDot(p) { return p && p > 0 ? `<span class="pri-dot d${p}"></span>` : ''; }
 
 const DAYS=['일','월','화','수','목','금','토'];
 const SLOT0=360, SLOT1=1440, SLOTD=30, SLOTH=40; // 06:00-24:00, 30min, 40px
@@ -1057,7 +1053,7 @@ function renderMonthly() {
       h+=`<div class="cell-entries">`;
       for(const it of sorted.slice(0,maxShow)) {
         h+=`<div class="cell-entry ${it.type}${priClass(it.pri)}" draggable="true"
-             ondragstart="entryDragStart(event,'${ds}','${it.id}')">${priDot(it.pri)}${it.start?`<span class="ce-time">${shortTime(it.start)}</span> `:''}${escHtml(summarize(it.title))}</div>`;
+             ondragstart="entryDragStart(event,'${ds}','${it.id}')">${it.start?`<span class="ce-time">${shortTime(it.start)}</span> `:''}${escHtml(summarize(it.title))}</div>`;
       }
       if(sorted.length>maxShow) h+=`<div class="cell-more">+${sorted.length-maxShow}</div>`;
       h+=`</div>`;
@@ -1117,7 +1113,7 @@ function renderWeekly() {
       const past=ds<today;
       const entryClass=done?'actual':past?'missed':'plan';
       h+=`<div class="weekly-entry ${entryClass}${priClass(it.pri)}" draggable="true"
-           ondragstart="entryDragStart(event,'${ds}','${it.id}')">${priDot(it.pri)}${it.start?shortTime(it.start)+' ':''}${escHtml(summarize(it.title))}</div>`;
+           ondragstart="entryDragStart(event,'${ds}','${it.id}')">${it.start?shortTime(it.start)+' ':''}${escHtml(summarize(it.title))}</div>`;
     }
     if(sorted.length>8) h+=`<div style="color:var(--text-secondary);font-size:10px;padding:2px">+${sorted.length-8}</div>`;
     h+=`</div></div>`;
@@ -1181,7 +1177,7 @@ function renderDaily() {
       h+=`<div class="unsched-card ${it.type}${priClass(it.pri)}" draggable="true"
            ondragstart="unschedDragStart(event,'${it.id}')"
            onclick="editItem('${it.id}')">
-        <div class="unsched-title">${priDot(it.pri)}${escHtml(it.title)}</div>
+        <div class="unsched-title">${escHtml(it.title)}</div>
         <div class="unsched-type">${it.type==='plan'?'계획':'실행'}${it.est?` · ${it.est}분`:''}</div>
       </div>`;
     }
@@ -1219,7 +1215,7 @@ function renderDaily() {
     h+=`<div class="schedule-block plan${priClass(it.pri)}" data-item-id="${it.id}" style="top:${top}px;height:${Math.max(ht,20)}px;left:${lPct}%;width:${wPct}%;right:auto"
          draggable="true" ondragstart="planBlockDragStart(event,'${it.id}')"
          onclick="editItem('${it.id}')">
-      <div class="block-title">${priDot(it.pri)}${escHtml(it.title)}</div>
+      <div class="block-title">${escHtml(it.title)}</div>
       <div class="block-time">${it.start}-${it.end}</div>
       <div class="block-actions"><button class="block-action-btn" onclick="event.stopPropagation();editItem('${it.id}')">✏️</button></div>
       <div class="resize-handle"></div>
@@ -1246,7 +1242,7 @@ function renderDaily() {
     const lPct=lay.col/lay.total*100, wPct=100/lay.total;
     h+=`<div class="schedule-block actual${priClass(it.pri)}" data-item-id="${it.id}" style="top:${top}px;height:${Math.max(ht,20)}px;left:${lPct}%;width:${wPct}%;right:auto"
          onclick="editItem('${it.id}')">
-      <div class="block-title">${priDot(it.pri)}${escHtml(it.title)}</div>
+      <div class="block-title">${escHtml(it.title)}</div>
       <div class="block-time">${it.start}-${it.end}</div>
       <div class="block-actions"><button class="block-action-btn" onclick="event.stopPropagation();editItem('${it.id}')">✏️</button></div>
       <div class="resize-handle"></div>
@@ -1448,7 +1444,7 @@ function renderTodos() {
   for(const t of S.todos) {
     h+=`<div class="todo-item" draggable="true" data-todo-id="${t.id}"
          ondragstart="todoDragStart(event,'${t.id}')">
-      <span class="todo-title">${escHtml(t.title)}</span>
+      <span class="todo-title${priClass(t.pri)}">${escHtml(t.title)}</span>
       ${t.estimatedMinutes?`<span class="todo-time">${t.estimatedMinutes}분</span>`:''}
       <button class="todo-edit" onclick="event.stopPropagation();todoEdit('${t.id}')">✎</button>
       <button class="todo-delete" onclick="todoDel('${t.id}')">✕</button>
@@ -1476,11 +1472,13 @@ function showTodoInput(event) {
     <div class="todo-inline-row">
       <input type="text" class="todo-inline-title" placeholder="할 일 입력...">
       <input type="number" class="todo-inline-time" placeholder="분" min="0" step="10">
+      <select class="todo-inline-pri"><option value="0">보통</option><option value="1">★</option><option value="2">★★</option><option value="3">★★★</option></select>
     </div>`;
   placeholder.replaceWith(form);
 
   const titleInput=form.querySelector('.todo-inline-title');
   const timeInput=form.querySelector('.todo-inline-time');
+  const priInput=form.querySelector('.todo-inline-pri');
   titleInput.focus();
 
   let submitted=false;
@@ -1489,7 +1487,7 @@ function showTodoInput(event) {
     submitted=true;
     const title=titleInput.value.trim();
     if(title) {
-      S.todos.push({id:uid(),title,estimatedMinutes:parseInt(timeInput.value)||0,completed:false,createdAt:new Date().toISOString()});
+      S.todos.push({id:uid(),title,estimatedMinutes:parseInt(timeInput.value)||0,pri:parseInt(priInput.value)||0,completed:false,createdAt:new Date().toISOString()});
       persist();
     }
     renderTodos();
@@ -1502,6 +1500,7 @@ function showTodoInput(event) {
 
   titleInput.addEventListener('keydown',handleKeydown);
   timeInput.addEventListener('keydown',handleKeydown);
+  priInput.addEventListener('keydown',handleKeydown);
 
   form.addEventListener('focusout', (e) => {
     setTimeout(()=>{
@@ -1542,10 +1541,12 @@ function todoEdit(id) {
     <div class="todo-inline-row">
       <input type="text" class="todo-inline-title" value="${escHtml(t.title)}">
       <input type="number" class="todo-inline-time" placeholder="분" min="0" step="10" value="${t.estimatedMinutes||''}">
+      <select class="todo-inline-pri"><option value="0"${(t.pri||0)==0?' selected':''}>보통</option><option value="1"${(t.pri||0)==1?' selected':''}>★</option><option value="2"${(t.pri||0)==2?' selected':''}>★★</option><option value="3"${(t.pri||0)==3?' selected':''}>★★★</option></select>
     </div>`;
   el.replaceWith(form);
   const titleInput=form.querySelector('.todo-inline-title');
   const timeInput=form.querySelector('.todo-inline-time');
+  const priInput=form.querySelector('.todo-inline-pri');
   titleInput.focus();
   titleInput.select();
   let submitted=false;
@@ -1556,6 +1557,7 @@ function todoEdit(id) {
     if(title) {
       t.title=title;
       t.estimatedMinutes=parseInt(timeInput.value)||0;
+      t.pri=parseInt(priInput.value)||0;
       persist();
     }
     renderTodos();
@@ -1566,6 +1568,7 @@ function todoEdit(id) {
   }
   titleInput.addEventListener('keydown',handleKeydown);
   timeInput.addEventListener('keydown',handleKeydown);
+  priInput.addEventListener('keydown',handleKeydown);
   form.addEventListener('focusout', (e) => {
     setTimeout(()=>{
       if(!form.contains(document.activeElement)) submit();
@@ -1677,7 +1680,7 @@ function slotDrop(event,time,type) {
   if(!todo) return;
   const sm=timeToMin(time), dur=todo.estimatedMinutes||60;
   const em=Math.min(sm+dur,SLOT1);
-  e.plans.push({id:uid(),start:time,end:minToTime(em),title:todo.title,type,pri:0,est:todo.estimatedMinutes||0});
+  e.plans.push({id:uid(),start:time,end:minToTime(em),title:todo.title,type,pri:todo.pri||0,est:todo.estimatedMinutes||0});
   S.todos=S.todos.filter(t=>t.id!==data);
   markModified(ds);
   persist(); render();
@@ -1709,7 +1712,7 @@ function calDrop(event,ds) {
   const todo=S.todos.find(t=>t.id===data);
   if(!todo) return;
   const e=entry(ds);
-  e.plans.push({id:uid(),start:'',end:'',title:todo.title,type:'plan',pri:0,est:todo.estimatedMinutes||0});
+  e.plans.push({id:uid(),start:'',end:'',title:todo.title,type:'plan',pri:todo.pri||0,est:todo.estimatedMinutes||0});
   S.todos=S.todos.filter(t=>t.id!==data);
   markModified(ds);
   persist(); render();
@@ -2255,14 +2258,14 @@ function initTouch() {
         const sm=timeToMin(slot.dataset.time), dur=dragTodo.estimatedMinutes||60;
         const em=Math.min(sm+dur,SLOT1);
         const _ds=dateStr(S.date);
-        entry(_ds).plans.push({id:uid(),start:slot.dataset.time,end:minToTime(em),title:dragTodo.title,type:slot.dataset.type,pri:0,est:dragTodo.estimatedMinutes||0});
+        entry(_ds).plans.push({id:uid(),start:slot.dataset.time,end:minToTime(em),title:dragTodo.title,type:slot.dataset.type,pri:dragTodo.pri||0,est:dragTodo.estimatedMinutes||0});
         S.todos=S.todos.filter(t=>t.id!==dragTodo.id);
         markModified(_ds);
         persist();render();toast(`"${dragTodo.title}" 추가됨`);
       } else if(dragTodo&&cell&&cell.dataset.date){
         // Todo → calendar cell: create unscheduled
         const _ds2=cell.dataset.date;
-        entry(_ds2).plans.push({id:uid(),start:'',end:'',title:dragTodo.title,type:'plan',pri:0,est:dragTodo.estimatedMinutes||0});
+        entry(_ds2).plans.push({id:uid(),start:'',end:'',title:dragTodo.title,type:'plan',pri:dragTodo.pri||0,est:dragTodo.estimatedMinutes||0});
         S.todos=S.todos.filter(t=>t.id!==dragTodo.id);
         markModified(_ds2);
         persist();render();toast(`"${dragTodo.title}" ${_ds2}에 추가됨 (시간 미지정)`);
