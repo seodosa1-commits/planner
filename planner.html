@@ -626,8 +626,8 @@ body {
 
 <!-- Tabs -->
 <nav class="tabs">
-  <button class="tab active" data-view="monthly" onclick="switchView('monthly')">월간</button>
-  <button class="tab" data-view="weekly" onclick="switchView('weekly')">주간</button>
+  <button class="tab" data-view="monthly" onclick="switchView('monthly')">월간</button>
+  <button class="tab active" data-view="weekly" onclick="switchView('weekly')">주간</button>
   <button class="tab" data-view="daily" onclick="switchView('daily')">일간</button>
   <button class="tab" data-view="report" onclick="switchView('report')">리포트</button>
 </nav>
@@ -753,7 +753,7 @@ body {
    STATE
    ================================================================ */
 const S = {
-  view: 'monthly',
+  view: 'weekly',
   date: new Date(),
   entries: {},       // { 'YYYY-MM-DD': { plans: [{id,start,end,title,type},...], memo: '' } }
   todos: [],
