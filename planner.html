@@ -340,17 +340,17 @@ body {
 }
 .schedule-block:hover { box-shadow: var(--shadow-lg); z-index: 6; }
 .schedule-block.plan {
-  background: rgba(232,240,254,0.85); border-left: 3px solid var(--plan-color); color: var(--plan-color);
+  background: var(--plan-bg); border-left: 3px solid var(--plan-color); color: var(--plan-color);
 }
 .schedule-block.actual {
-  background: rgba(230,244,234,0.85); border-left: 3px solid var(--actual-color); color: var(--actual-color);
+  background: var(--actual-bg); border-left: 3px solid var(--actual-color); color: var(--actual-color);
 }
 .schedule-block .block-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .schedule-block .block-time { font-size: 10px; opacity: 0.8; }
 /* Priority colors override */
-.schedule-block.pri-3 { background: rgba(253,232,232,0.85); border-left-color: #DC2626; color: #DC2626; }
-.schedule-block.pri-2 { background: rgba(255,243,224,0.85); border-left-color: #E65100; color: #E65100; }
-.schedule-block.pri-1 { background: rgba(255,248,225,0.85); border-left-color: #F9A825; color: #F9A825; }
+.schedule-block.pri-3 { background: #FDE8E8; border-left-color: #DC2626; color: #DC2626; }
+.schedule-block.pri-2 { background: #FFF3E0; border-left-color: #E65100; color: #E65100; }
+.schedule-block.pri-1 { background: #FFF8E1; border-left-color: #F9A825; color: #F9A825; }
 /* .pri-0 = default, uses plan/actual colors */
 .cell-entry.pri-3 { background: #FDE8E8; border-left-color: #DC2626; color: #DC2626; }
 .cell-entry.pri-2 { background: #FFF3E0; border-left-color: #E65100; color: #E65100; }
