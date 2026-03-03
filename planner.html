@@ -352,6 +352,7 @@ body {
 .cell-entry.pri-3 { background: #FDE8E8; border-left-color: #DC2626; color: #DC2626; }
 .cell-entry.pri-2 { background: #FFF3E0; border-left-color: #E65100; color: #E65100; }
 .cell-entry.pri-1 { background: #FFF8E1; border-left-color: #F9A825; color: #F9A825; }
+.weekly-entry.missed { background: var(--mismatch-bg); border-left-color: var(--mismatch-color); color: var(--mismatch-color); }
 .weekly-entry.pri-3 { background: #FDE8E8; border-left-color: #DC2626; color: #DC2626; }
 .weekly-entry.pri-2 { background: #FFF3E0; border-left-color: #E65100; color: #E65100; }
 .weekly-entry.pri-1 { background: #FFF8E1; border-left-color: #F9A825; color: #F9A825; }
@@ -1040,7 +1041,9 @@ function renderWeekly() {
     const sorted=[...items].sort((a,b)=>(a.start?timeToMin(a.start):Infinity)-(b.start?timeToMin(b.start):Infinity));
     for(const it of sorted.slice(0,8)) {
       const done=actTitles.has(it.title.trim().toLowerCase());
-      h+=`<div class="weekly-entry ${done?'actual':'plan'}${priClass(it.pri)}" draggable="true"
+      const past=ds<today;
+      const entryClass=done?'actual':past?'missed':'plan';
+      h+=`<div class="weekly-entry ${entryClass}${priClass(it.pri)}" draggable="true"
            ondragstart="entryDragStart(event,'${ds}','${it.id}')">${priDot(it.pri)}${it.start?shortTime(it.start)+' ':''}${escHtml(summarize(it.title))}</div>`;
     }
     if(sorted.length>8) h+=`<div style="color:var(--text-secondary);font-size:10px;padding:2px">+${sorted.length-8}</div>`;
