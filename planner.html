@@ -375,6 +375,9 @@ body {
 .weekly-entry.pri-3 { background: #FDE8E8; border-left-color: #DC2626; color: #DC2626; }
 .weekly-entry.pri-2 { background: #FFF3E0; border-left-color: #E65100; color: #E65100; }
 .weekly-entry.pri-1 { background: #FFF8E1; border-left-color: #F9A825; color: #F9A825; }
+.todo-item .pri-1 { color: #F9A825; }
+.todo-item .pri-2 { color: #E65100; }
+.todo-item .pri-3 { color: #DC2626; }
 .todo-inline-form .todo-inline-pri { width: 70px; flex: none; padding: 6px 4px; }
 .schedule-block .block-actions {
   position: absolute; top: 2px; right: 2px; display: flex; gap: 2px;
@@ -705,9 +708,9 @@ body {
       <label>중요도</label>
       <select id="modalPriority">
         <option value="0">보통</option>
-        <option value="1" style="color:#F9A825">★ 관심</option>
-        <option value="2" style="color:#E65100">★★ 중요</option>
-        <option value="3" style="color:#DC2626">★★★ 최고</option>
+        <option value="1" style="color:#F9A825">관심</option>
+        <option value="2" style="color:#E65100">중요</option>
+        <option value="3" style="color:#DC2626">최고</option>
       </select>
     </div>
     <div class="modal-actions">
@@ -1472,7 +1475,7 @@ function showTodoInput(event) {
     <div class="todo-inline-row">
       <input type="text" class="todo-inline-title" placeholder="할 일 입력...">
       <input type="number" class="todo-inline-time" placeholder="분" min="0" step="10">
-      <select class="todo-inline-pri"><option value="0">보통</option><option value="1">★</option><option value="2">★★</option><option value="3">★★★</option></select>
+      <select class="todo-inline-pri"><option value="0">보통</option><option value="1">관심</option><option value="2">중요</option><option value="3">최고</option></select>
     </div>`;
   placeholder.replaceWith(form);
 
@@ -1541,7 +1544,7 @@ function todoEdit(id) {
     <div class="todo-inline-row">
       <input type="text" class="todo-inline-title" value="${escHtml(t.title)}">
       <input type="number" class="todo-inline-time" placeholder="분" min="0" step="10" value="${t.estimatedMinutes||''}">
-      <select class="todo-inline-pri"><option value="0"${(t.pri||0)==0?' selected':''}>보통</option><option value="1"${(t.pri||0)==1?' selected':''}>★</option><option value="2"${(t.pri||0)==2?' selected':''}>★★</option><option value="3"${(t.pri||0)==3?' selected':''}>★★★</option></select>
+      <select class="todo-inline-pri"><option value="0"${(t.pri||0)==0?' selected':''}>보통</option><option value="1"${(t.pri||0)==1?' selected':''}>관심</option><option value="2"${(t.pri||0)==2?' selected':''}>중요</option><option value="3"${(t.pri||0)==3?' selected':''}>최고</option></select>
     </div>`;
   el.replaceWith(form);
   const titleInput=form.querySelector('.todo-inline-title');
