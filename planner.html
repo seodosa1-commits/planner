@@ -203,7 +203,7 @@ body {
   min-height: 90px; padding: 4px; border-right: 1px solid var(--border-light);
   border-bottom: 1px solid var(--border-light); background: var(--surface);
   cursor: pointer; transition: var(--transition); position: relative;
-  overflow: hidden;
+  overflow: hidden; display: flex; flex-direction: column;
 }
 .calendar-cell:hover { background: var(--surface-hover); }
 .calendar-cell.other-month { background: #FAFAFA; }
@@ -217,7 +217,12 @@ body {
 .cell-date.sunday { color: var(--mismatch-color); }
 .cell-date.saturday { color: var(--primary); }
 .cell-info { font-size: 10px; color: var(--text-secondary); }
-.cell-entries { display: flex; flex-direction: column; gap: 1px; margin-top: 1px; overflow: hidden; }
+.cell-entries {
+  display: flex; flex-direction: column; gap: 1px; margin-top: 1px;
+  overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+.cell-entries::-webkit-scrollbar { display: none; }
 .cell-entry {
   font-size: 10px; padding: 1px 3px; border-radius: 2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -1134,17 +1139,16 @@ function renderMonthly() {
       const plansOnly=ent.plans.filter(p=>p.type==='plan');
       const sorted=[...plansOnly].sort((a,b)=>(a.start?timeToMin(a.start):Infinity)-(b.start?timeToMin(b.start):Infinity));
       const abbrevMap=buildDayAbbrevMap(sorted,S.legalKeywords);
-      const maxShow=3;
-      h+=`<div class="cell-entries">`;
-      for(const it of sorted.slice(0,maxShow)) {
+      h+=`<div class="cell-entries" onclick="event.stopPropagation()">`;
+      for(const it of sorted) {
         const abbr=abbrevMap.get(it.id);
         const label=abbr?escHtml(abbr):escHtml(summarize(it.title));
         const tip=abbr?` title="${escHtml(it.title)}"`:'';
 
         h+=`<div class="cell-entry ${it.type}${priClass(it.pri)}"${tip} draggable="true"
+             onclick="goDate('${ds}')"
              ondragstart="entryDragStart(event,'${ds}','${it.id}')">${it.start?`<span class="ce-time">${shortTime(it.start)}</span> `:''}${label}</div>`;
       }
-      if(sorted.length>maxShow) h+=`<div class="cell-more">+${sorted.length-maxShow}</div>`;
       h+=`</div>`;
       if(mr) h+=`<div class="cell-match-bar" style="background:${matchColor(mr.avgRate)};width:${mr.avgRate}%"></div>`;
     }
