@@ -1424,11 +1424,13 @@ function renderReport() {
     if(ent&&ent.plans.length) {
       for(const p of ent.plans.filter(x=>x.type==='plan'&&x.start&&x.end)) {
         const dur=timeToMin(p.end)-timeToMin(p.start);
-        if(!am[p.title]) am[p.title]={plan:0,actual:0}; am[p.title].plan+=dur; tp++;
+        const k=legalAbbrev(p.title,S.legalKeywords)||p.title;
+        if(!am[k]) am[k]={plan:0,actual:0}; am[k].plan+=dur; tp++;
       }
       for(const a of ent.plans.filter(x=>x.type==='actual'&&x.start&&x.end)) {
         const dur=timeToMin(a.end)-timeToMin(a.start);
-        if(!am[a.title]) am[a.title]={plan:0,actual:0}; am[a.title].actual+=dur; ta++;
+        const k=legalAbbrev(a.title,S.legalKeywords)||a.title;
+        if(!am[k]) am[k]={plan:0,actual:0}; am[k].actual+=dur; ta++;
       }
     }
     if(mr2) {
