@@ -1348,7 +1348,10 @@ function showTodoInput(event) {
   const timeInput=form.querySelector('.todo-inline-time');
   titleInput.focus();
 
+  let submitted=false;
   function submit() {
+    if(submitted) return;
+    submitted=true;
     const title=titleInput.value.trim();
     if(title) {
       S.todos.push({id:uid(),title,estimatedMinutes:parseInt(timeInput.value)||0,completed:false,createdAt:new Date().toISOString()});
