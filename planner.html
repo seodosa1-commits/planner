@@ -548,6 +548,25 @@ body {
   font-family: monospace; outline: none;
 }
 .settings-section input:focus { border-color: var(--primary); }
+.kw-chips { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px; }
+.kw-chip {
+  display:inline-flex; align-items:center; gap:2px;
+  background:var(--plan-bg); color:var(--plan-color); border:1px solid var(--border);
+  border-radius:12px; padding:2px 8px; font-size:12px;
+}
+.kw-chip button {
+  background:none; border:none; cursor:pointer; color:var(--text-secondary);
+  font-size:14px; line-height:1; padding:0 0 0 2px;
+}
+.kw-chip button:hover { color:var(--danger,#DC2626); }
+.kw-add-row { display:flex; gap:4px; margin-bottom:8px; }
+.kw-add-row input { flex:1; margin-bottom:0; }
+.mobile-tooltip {
+  position:fixed; z-index:9999; background:rgba(0,0,0,0.85); color:#fff;
+  padding:8px 12px; border-radius:6px; font-size:13px; max-width:80vw;
+  pointer-events:none; opacity:0; transition:opacity 0.2s;
+}
+.mobile-tooltip.show { opacity:1; }
 
 /* ===== Toast ===== */
 .toast {
@@ -748,6 +767,15 @@ body {
         <button class="btn btn-secondary" onclick="clearFirebaseConfig()">Firebase 해제</button>
       </div>
     </div>
+    <div class="settings-section">
+      <h3>법률 키워드 (월간 뷰 제목 축약)</h3>
+      <div class="kw-chips" id="kwChips"></div>
+      <div class="kw-add-row">
+        <input id="kwInput" placeholder="키워드 입력" onkeydown="if(event.key==='Enter'){addKeyword()}">
+        <button class="btn btn-secondary" onclick="addKeyword()">추가</button>
+      </div>
+      <button class="btn btn-secondary" onclick="resetKeywords()" style="font-size:11px">기본값 복원</button>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeSettings()">닫기</button>
     </div>
@@ -777,6 +805,8 @@ body {
 <div class="toast" id="toast"></div>
 <!-- Drag Ghost -->
 <div class="drag-ghost" id="dragGhost"></div>
+<!-- Mobile Tooltip -->
+<div class="mobile-tooltip" id="mobileTooltip"></div>
 
 <script>
 /* ================================================================
@@ -791,8 +821,15 @@ const S = {
   editingId: null,
   fbReady: false,
   user: null,
-  unsubs: []
+  unsubs: [],
+  legalKeywords: []
 };
+
+const DEFAULT_LEGAL_KEYWORDS = [
+  '석명준비서면','지급명령신청서','항소이유서','상고이유서','이의신청서',
+  '조정신청서','증거신청서','참가신청서','준비서면','답변서',
+  '항소장','상고장','의견서','신청서','소장'
+];
 
 /* ================================================================
    UTILITIES
@@ -834,6 +871,34 @@ function summarize(title) {
     }
   }
   return t || title;
+}
+
+// 법률 키워드 축약
+function legalAbbrev(title, keywords) {
+  const sorted=[...keywords].sort((a,b)=>b.length-a.length);
+  for(const kw of sorted) { if(title.includes(kw)) return kw; }
+  return null;
+}
+function buildDayAbbrevMap(entries, keywords) {
+  const map=new Map();
+  const kwCount={};
+  const matched=[];
+  for(const e of entries) {
+    const kw=legalAbbrev(e.title,keywords);
+    matched.push({id:e.id,kw});
+    if(kw) kwCount[kw]=(kwCount[kw]||0)+1;
+  }
+  for(const {id,kw} of matched) {
+    if(!kw) continue;
+    if(kwCount[kw]>=2) {
+      if(!kwCount['_seq_'+kw]) kwCount['_seq_'+kw]=0;
+      const idx=kwCount['_seq_'+kw]++;
+      map.set(id,kw+' ('+String.fromCharCode(65+idx)+')');
+    } else {
+      map.set(id,kw);
+    }
+  }
+  return map;
 }
 
 // 시간 축약: "09:00" → "9", "13:30" → "13:30"
@@ -896,6 +961,15 @@ function load() {
     const t=localStorage.getItem('pl_todos'); if(t) S.todos=JSON.parse(t);
     const g=localStorage.getItem('pl_goals'); if(g) S.weeklyGoals=JSON.parse(g);
   } catch(e) { console.error(e); }
+}
+function loadKeywords() {
+  try {
+    const d=localStorage.getItem('pl_legal_keywords');
+    S.legalKeywords=d?JSON.parse(d):[...DEFAULT_LEGAL_KEYWORDS];
+  } catch(e) { S.legalKeywords=[...DEFAULT_LEGAL_KEYWORDS]; }
+}
+function saveKeywords() {
+  localStorage.setItem('pl_legal_keywords',JSON.stringify(S.legalKeywords));
 }
 function entry(d) {
   const k=typeof d==='string'?d:dateStr(d);
@@ -1059,11 +1133,16 @@ function renderMonthly() {
     if(!other&&ent&&ent.plans&&ent.plans.length) {
       const plansOnly=ent.plans.filter(p=>p.type==='plan');
       const sorted=[...plansOnly].sort((a,b)=>(a.start?timeToMin(a.start):Infinity)-(b.start?timeToMin(b.start):Infinity));
+      const abbrevMap=buildDayAbbrevMap(sorted,S.legalKeywords);
       const maxShow=3;
       h+=`<div class="cell-entries">`;
       for(const it of sorted.slice(0,maxShow)) {
-        h+=`<div class="cell-entry ${it.type}${priClass(it.pri)}" draggable="true"
-             ondragstart="entryDragStart(event,'${ds}','${it.id}')">${it.start?`<span class="ce-time">${shortTime(it.start)}</span> `:''}${escHtml(summarize(it.title))}</div>`;
+        const abbr=abbrevMap.get(it.id);
+        const label=abbr?escHtml(abbr):escHtml(summarize(it.title));
+        const tip=abbr?` title="${escHtml(it.title)}"`:'';
+
+        h+=`<div class="cell-entry ${it.type}${priClass(it.pri)}"${tip} draggable="true"
+             ondragstart="entryDragStart(event,'${ds}','${it.id}')">${it.start?`<span class="ce-time">${shortTime(it.start)}</span> `:''}${label}</div>`;
       }
       if(sorted.length>maxShow) h+=`<div class="cell-more">+${sorted.length-maxShow}</div>`;
       h+=`</div>`;
@@ -1861,6 +1940,32 @@ function initSwipe() {
 /* ================================================================
    SETTINGS
    ================================================================ */
+/* ================================================================
+   KEYWORD MANAGEMENT
+   ================================================================ */
+function renderKeywordList() {
+  const c=document.getElementById('kwChips'); if(!c) return;
+  c.innerHTML=S.legalKeywords.map((kw,i)=>
+    `<span class="kw-chip">${escHtml(kw)}<button onclick="removeKeyword(${i})">✕</button></span>`
+  ).join('');
+}
+function addKeyword() {
+  const inp=document.getElementById('kwInput'), v=inp.value.trim();
+  if(!v) return;
+  if(S.legalKeywords.includes(v)) { inp.value=''; return; }
+  S.legalKeywords.push(v);
+  S.legalKeywords.sort((a,b)=>b.length-a.length);
+  saveKeywords(); renderKeywordList(); render(); inp.value='';
+}
+function removeKeyword(idx) {
+  S.legalKeywords.splice(idx,1);
+  saveKeywords(); renderKeywordList(); render();
+}
+function resetKeywords() {
+  S.legalKeywords=[...DEFAULT_LEGAL_KEYWORDS];
+  saveKeywords(); renderKeywordList(); render();
+}
+
 function showSettings() {
   const cfg=JSON.parse(localStorage.getItem('fb_config')||'{}');
   document.getElementById('fbApiKey').value=cfg.apiKey||'';
@@ -1869,6 +1974,7 @@ function showSettings() {
   document.getElementById('fbStorageBucket').value=cfg.storageBucket||'';
   document.getElementById('fbMsgSenderId').value=cfg.messagingSenderId||'';
   document.getElementById('fbAppId').value=cfg.appId||'';
+  renderKeywordList();
   document.getElementById('settingsModal').classList.add('active');
 }
 function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
@@ -2445,17 +2551,42 @@ document.getElementById('settingsModal').addEventListener('click',e=>{if(e.targe
 document.getElementById('searchModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeSearch();});
 
 /* ================================================================
+   MOBILE TOOLTIP
+   ================================================================ */
+function initMobileTooltip() {
+  const tip=document.getElementById('mobileTooltip');
+  let timer=null;
+  function hide() { clearTimeout(timer); tip.classList.remove('show'); }
+  document.addEventListener('touchstart',function(e) {
+    const el=e.target.closest('.cell-entry[title]');
+    if(!el) return;
+    timer=setTimeout(function() {
+      tip.textContent=el.getAttribute('title');
+      const r=el.getBoundingClientRect();
+      tip.style.left=Math.min(r.left,window.innerWidth-tip.offsetWidth-8)+'px';
+      tip.style.top=(r.bottom+6)+'px';
+      tip.classList.add('show');
+    },500);
+  },{passive:true});
+  document.addEventListener('touchmove',hide,{passive:true});
+  document.addEventListener('touchend',hide,{passive:true});
+  document.addEventListener('touchcancel',hide,{passive:true});
+}
+
+/* ================================================================
    INIT
    ================================================================ */
 function init() {
   populateTimeOpts();
   load();
+  loadKeywords();
   initFB();
   updateAuthUI();
   render();
   initResize();
   initTouch();
   initSwipe();
+  initMobileTooltip();
 
   // 할 일 목록 빈 공간 클릭 시 입력 창 표시
   document.getElementById('todoList').addEventListener('click', function(e) {
