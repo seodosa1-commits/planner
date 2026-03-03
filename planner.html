@@ -229,6 +229,7 @@ body {
 }
 .cell-entry.plan { background: var(--plan-bg); color: var(--plan-color); border-left: 2px solid var(--plan-color); }
 .cell-entry.actual { background: var(--actual-bg); color: var(--actual-color); border-left: 2px solid var(--actual-color); }
+.cell-entry.missed { background: var(--mismatch-bg); border-left-color: var(--mismatch-color); color: var(--mismatch-color); }
 .cell-entry .ce-time { font-weight: 600; }
 .cell-more { font-size: 9px; color: var(--text-secondary); padding: 0 3px; }
 .cell-match-bar { height: 3px; border-radius: 2px; margin-top: 2px; }
@@ -1136,6 +1137,7 @@ function renderMonthly() {
       <div class="cell-date ${dc}">${cd.getDate()}${hasMemo?'<span style="font-size:9px" title="메모 있음"> 📝</span>':''}</div>`;
     if(!other&&ent&&ent.plans&&ent.plans.length) {
       const plansOnly=ent.plans.filter(p=>p.type==='plan');
+      const actTitles=new Set(ent.plans.filter(p=>p.type==='actual').map(p=>p.title.trim().toLowerCase()));
       if(plansOnly.length>0) h+=`<span class="cell-count">${plansOnly.length}</span>`;
       const sorted=[...plansOnly].sort((a,b)=>(a.start?timeToMin(a.start):Infinity)-(b.start?timeToMin(b.start):Infinity));
       const abbrevMap=buildDayAbbrevMap(sorted,S.legalKeywords);
@@ -1144,8 +1146,11 @@ function renderMonthly() {
         const abbr=abbrevMap.get(it.id);
         const label=abbr?escHtml(abbr):escHtml(summarize(it.title));
         const tip=abbr?` title="${escHtml(it.title)}"`:'';
+        const done=actTitles.has(it.title.trim().toLowerCase());
+        const past=ds<today;
+        const entryClass=done?'actual':past?'missed':'plan';
 
-        h+=`<div class="cell-entry ${it.type}${priClass(it.pri)}"${tip} draggable="true"
+        h+=`<div class="cell-entry ${entryClass}${priClass(it.pri)}"${tip} draggable="true"
              ondragstart="entryDragStart(event,'${ds}','${it.id}')">${label}</div>`;
       }
       h+=`</div>`;
