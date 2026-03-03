@@ -1102,7 +1102,7 @@ function renderDaily() {
            ondragstart="unschedDragStart(event,'${it.id}')"
            onclick="editItem('${it.id}')">
         <div class="unsched-title">${priDot(it.pri)}${escHtml(it.title)}</div>
-        <div class="unsched-type">${it.type==='plan'?'계획':'실행'}</div>
+        <div class="unsched-type">${it.type==='plan'?'계획':'실행'}${it.est?` · ${it.est}분`:''}</div>
       </div>`;
     }
     h+=`</div></div>`;
@@ -1354,16 +1354,13 @@ function drawChart() {
 function renderTodos() {
   const list=document.getElementById('todoList');
   if(!list) return;
-  const active=S.todos.filter(t=>!t.completed);
-  const done=S.todos.filter(t=>t.completed);
-  document.getElementById('todoCount').textContent=active.length;
+  document.getElementById('todoCount').textContent=S.todos.length;
 
   let h='';
-  for(const t of [...active,...done]) {
+  for(const t of S.todos) {
     h+=`<div class="todo-item" draggable="true" data-todo-id="${t.id}"
          ondragstart="todoDragStart(event,'${t.id}')">
-      <input type="checkbox" ${t.completed?'checked':''} onchange="todoToggle('${t.id}')">
-      <span class="todo-title ${t.completed?'completed':''}">${escHtml(t.title)}</span>
+      <span class="todo-title">${escHtml(t.title)}</span>
       ${t.estimatedMinutes?`<span class="todo-time">${t.estimatedMinutes}분</span>`:''}
       <button class="todo-delete" onclick="todoDel('${t.id}')">✕</button>
     </div>`;
@@ -1499,7 +1496,7 @@ function slotDrop(event,time,type) {
     const itemId=data.slice(8);
     const it=e.plans.find(p=>p.id===itemId);
     if(!it) return;
-    const sm=timeToMin(time), dur=60;
+    const sm=timeToMin(time), dur=it.est||60;
     const em=Math.min(sm+dur,SLOT1);
     it.start=time; it.end=minToTime(em);
     markModified(ds); persist(); render();
@@ -1530,7 +1527,8 @@ function slotDrop(event,time,type) {
   if(!todo) return;
   const sm=timeToMin(time), dur=todo.estimatedMinutes||60;
   const em=Math.min(sm+dur,SLOT1);
-  e.plans.push({id:uid(),start:time,end:minToTime(em),title:todo.title,type,pri:0});
+  e.plans.push({id:uid(),start:time,end:minToTime(em),title:todo.title,type,pri:0,est:todo.estimatedMinutes||0});
+  S.todos=S.todos.filter(t=>t.id!==data);
   markModified(ds);
   persist(); render();
   toast(`"${todo.title}" 추가됨`);
@@ -1543,7 +1541,8 @@ function calDrop(event,ds) {
   const todo=S.todos.find(t=>t.id===id);
   if(!todo) return;
   const e=entry(ds);
-  e.plans.push({id:uid(),start:'',end:'',title:todo.title,type:'plan',pri:0});
+  e.plans.push({id:uid(),start:'',end:'',title:todo.title,type:'plan',pri:0,est:todo.estimatedMinutes||0});
+  S.todos=S.todos.filter(t=>t.id!==id);
   markModified(ds);
   persist(); render();
   toast(`"${todo.title}" ${ds}에 추가됨 (시간 미지정)`);
@@ -1956,7 +1955,7 @@ function initTouch() {
 
       if(dragUnsched&&slot&&slot.dataset.time) {
         // Unscheduled → time slot: assign time
-        const sm=timeToMin(slot.dataset.time), dur=60;
+        const sm=timeToMin(slot.dataset.time), dur=dragUnsched.est||60;
         const em=Math.min(sm+dur,SLOT1);
         dragUnsched.start=slot.dataset.time; dragUnsched.end=minToTime(em);
         const _ds=dateStr(S.date);
@@ -1979,13 +1978,15 @@ function initTouch() {
         const sm=timeToMin(slot.dataset.time), dur=dragTodo.estimatedMinutes||60;
         const em=Math.min(sm+dur,SLOT1);
         const _ds=dateStr(S.date);
-        entry(_ds).plans.push({id:uid(),start:slot.dataset.time,end:minToTime(em),title:dragTodo.title,type:slot.dataset.type,pri:0});
+        entry(_ds).plans.push({id:uid(),start:slot.dataset.time,end:minToTime(em),title:dragTodo.title,type:slot.dataset.type,pri:0,est:dragTodo.estimatedMinutes||0});
+        S.todos=S.todos.filter(t=>t.id!==dragTodo.id);
         markModified(_ds);
         persist();render();toast(`"${dragTodo.title}" 추가됨`);
       } else if(dragTodo&&cell&&cell.dataset.date){
         // Todo → calendar cell: create unscheduled
         const _ds2=cell.dataset.date;
-        entry(_ds2).plans.push({id:uid(),start:'',end:'',title:dragTodo.title,type:'plan',pri:0});
+        entry(_ds2).plans.push({id:uid(),start:'',end:'',title:dragTodo.title,type:'plan',pri:0,est:dragTodo.estimatedMinutes||0});
+        S.todos=S.todos.filter(t=>t.id!==dragTodo.id);
         markModified(_ds2);
         persist();render();toast(`"${dragTodo.title}" ${_ds2}에 추가됨 (시간 미지정)`);
       }
