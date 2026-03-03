@@ -375,9 +375,9 @@ body {
 .weekly-entry.pri-3 { background: #FDE8E8; border-left-color: #DC2626; color: #DC2626; }
 .weekly-entry.pri-2 { background: #FFF3E0; border-left-color: #E65100; color: #E65100; }
 .weekly-entry.pri-1 { background: #FFF8E1; border-left-color: #F9A825; color: #F9A825; }
-.todo-item .pri-1 { color: #F9A825; }
-.todo-item .pri-2 { color: #E65100; }
-.todo-item .pri-3 { color: #DC2626; }
+.todo-item.pri-3 { background: #FDE8E8; border-color: #DC2626; color: #DC2626; }
+.todo-item.pri-2 { background: #FFF3E0; border-color: #E65100; color: #E65100; }
+.todo-item.pri-1 { background: #FFF8E1; border-color: #F9A825; color: #F9A825; }
 .todo-inline-form .todo-inline-pri { width: 70px; flex: none; padding: 6px 4px; }
 .schedule-block .block-actions {
   position: absolute; top: 2px; right: 2px; display: flex; gap: 2px;
@@ -1452,9 +1452,9 @@ function renderTodos() {
 
   let h='';
   for(const t of S.todos) {
-    h+=`<div class="todo-item" draggable="true" data-todo-id="${t.id}"
+    h+=`<div class="todo-item${priClass(t.pri)}" draggable="true" data-todo-id="${t.id}"
          ondragstart="todoDragStart(event,'${t.id}')">
-      <span class="todo-title${priClass(t.pri)}">${escHtml(t.title)}</span>
+      <span class="todo-title">${escHtml(t.title)}</span>
       ${t.estimatedMinutes?`<span class="todo-time">${t.estimatedMinutes}분</span>`:''}
       <button class="todo-edit" onclick="event.stopPropagation();todoEdit('${t.id}')">✎</button>
       <button class="todo-delete" onclick="todoDel('${t.id}')">✕</button>
