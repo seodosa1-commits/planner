@@ -200,10 +200,10 @@ body {
   background: var(--surface);
 }
 .calendar-cell {
-  height: 90px; padding: 4px; border-right: 1px solid var(--border-light);
+  min-height: 90px; padding: 4px; border-right: 1px solid var(--border-light);
   border-bottom: 1px solid var(--border-light); background: var(--surface);
   cursor: pointer; transition: var(--transition); position: relative;
-  overflow: hidden; display: flex; flex-direction: column;
+  overflow: hidden;
 }
 .calendar-cell:hover { background: var(--surface-hover); }
 .calendar-cell.other-month { background: #FAFAFA; }
@@ -221,16 +221,11 @@ body {
 .cell-date.sunday { color: var(--mismatch-color); }
 .cell-date.saturday { color: var(--primary); }
 .cell-info { font-size: 10px; color: var(--text-secondary); }
-.cell-entries {
-  display: flex; flex-direction: column; gap: 1px; margin-top: 1px;
-  overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0;
-  -webkit-overflow-scrolling: touch; scrollbar-width: none;
-}
-.cell-entries::-webkit-scrollbar { display: none; }
+.cell-entries { display: flex; flex-direction: column; gap: 1px; margin-top: 1px; overflow: hidden; }
 .cell-entry {
   font-size: 10px; padding: 1px 3px; border-radius: 2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  line-height: 1.3; flex-shrink: 0;
+  line-height: 1.3;
 }
 .cell-entry.plan { background: var(--plan-bg); color: var(--plan-color); border-left: 2px solid var(--plan-color); }
 .cell-entry.actual { background: var(--actual-bg); color: var(--actual-color); border-left: 2px solid var(--actual-color); }
@@ -600,7 +595,7 @@ body {
   .todo-panel.mobile-show { transform: translateX(0); }
   .todo-toggle { display: none !important; }
   .mobile-todo-btn { display: flex !important; }
-  .calendar-cell { height: 60px; }
+  .calendar-cell { min-height: 60px; }
   .cell-entry { font-size: 9px; }
   .cell-entries { gap: 0; }
   .cell-date { font-size: 11px; }
@@ -1144,14 +1139,13 @@ function renderMonthly() {
       if(plansOnly.length>0) h+=`<span class="cell-count">${plansOnly.length}</span>`;
       const sorted=[...plansOnly].sort((a,b)=>(a.start?timeToMin(a.start):Infinity)-(b.start?timeToMin(b.start):Infinity));
       const abbrevMap=buildDayAbbrevMap(sorted,S.legalKeywords);
-      h+=`<div class="cell-entries" onclick="event.stopPropagation()">`;
+      h+=`<div class="cell-entries">`;
       for(const it of sorted) {
         const abbr=abbrevMap.get(it.id);
         const label=abbr?escHtml(abbr):escHtml(summarize(it.title));
         const tip=abbr?` title="${escHtml(it.title)}"`:'';
 
         h+=`<div class="cell-entry ${it.type}${priClass(it.pri)}"${tip} draggable="true"
-             onclick="goDate('${ds}')"
              ondragstart="entryDragStart(event,'${ds}','${it.id}')">${label}</div>`;
       }
       h+=`</div>`;
