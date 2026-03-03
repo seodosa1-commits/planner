@@ -1032,13 +1032,15 @@ function renderWeekly() {
 
   for(const d of days) {
     const ds=dateStr(d), ent=S.entries[ds], items=ent?(ent.plans||[]).filter(p=>p.type==='plan'):[];
+    const actTitles=new Set(ent?(ent.plans||[]).filter(p=>p.type==='actual').map(p=>p.title.trim().toLowerCase()):[]);
     h+=`<div class="weekly-day-cell" onclick="goDate('${ds}')" data-date="${ds}"
          ondragover="event.preventDefault();this.classList.add('drag-over')"
          ondragleave="this.classList.remove('drag-over')"
          ondrop="calDrop(event,'${ds}')">`;
     const sorted=[...items].sort((a,b)=>(a.start?timeToMin(a.start):Infinity)-(b.start?timeToMin(b.start):Infinity));
     for(const it of sorted.slice(0,8)) {
-      h+=`<div class="weekly-entry ${it.type}${priClass(it.pri)}" draggable="true"
+      const done=actTitles.has(it.title.trim().toLowerCase());
+      h+=`<div class="weekly-entry ${done?'actual':'plan'}${priClass(it.pri)}" draggable="true"
            ondragstart="entryDragStart(event,'${ds}','${it.id}')">${priDot(it.pri)}${it.start?shortTime(it.start)+' ':''}${escHtml(summarize(it.title))}</div>`;
     }
     if(sorted.length>8) h+=`<div style="color:var(--text-secondary);font-size:10px;padding:2px">+${sorted.length-8}</div>`;
