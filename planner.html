@@ -986,11 +986,31 @@ function goDate(ds) { S.date=parseDate(ds); switchView('daily'); }
    ================================================================ */
 function render() {
   const m=document.getElementById('mainContent');
+  // 일간 뷰에서 메모 textarea 포커스 상태 보존
+  let memoFocused=false, memoVal='', memoSel=[0,0];
+  if(S.view==='daily'){
+    const ta=document.getElementById('dailyMemo');
+    if(ta&&document.activeElement===ta){
+      memoFocused=true;
+      memoVal=ta.value;
+      memoSel=[ta.selectionStart,ta.selectionEnd];
+    }
+  }
   switch(S.view) {
     case 'monthly': m.innerHTML=renderMonthly(); break;
     case 'weekly': m.innerHTML=renderWeekly(); break;
     case 'daily': m.innerHTML=renderDaily(); break;
     case 'report': m.innerHTML=renderReport(); requestAnimationFrame(drawChart); break;
+  }
+  // 메모 포커스 복원
+  if(memoFocused){
+    const ta=document.getElementById('dailyMemo');
+    if(ta){
+      ta.value=memoVal;
+      ta.focus();
+      ta.selectionStart=memoSel[0];
+      ta.selectionEnd=memoSel[1];
+    }
   }
   renderTodos();
 }
