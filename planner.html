@@ -1931,91 +1931,84 @@ function fbListen() {
    ================================================================ */
 function initTouch() {
   let dragTodo=null, dragUnsched=null, dragPlanBlock=null, dragEntry=null, ghost=null;
+  let longPressTimer=null, longPressReady=false, touchStartX=0, touchStartY=0;
+  const LONG_PRESS_MS=1000, MOVE_THRESHOLD=10;
 
-  document.addEventListener('touchstart',e=>{
-    // Todo item drag
-    const item=e.target.closest('.todo-item');
+  function createGhost(text) {
+    ghost=document.createElement('div');
+    ghost.className='drag-ghost';
+    ghost.textContent=text;
+    ghost.style.position='fixed';ghost.style.zIndex='999';ghost.style.pointerEvents='none';
+    document.body.appendChild(ghost);
+  }
+
+  function cancelLongPress() {
+    if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null;}
+    longPressReady=false;
+  }
+
+  function startDrag(e) {
+    // Identify what to drag
+    const target=e.target;
+    const item=target.closest('.todo-item');
     if(item) {
       dragTodo=S.todos.find(t=>t.id===item.dataset.todoId);
-      if(dragTodo) {
-        ghost=document.createElement('div');
-        ghost.className='drag-ghost';
-        ghost.textContent=dragTodo.title;
-        ghost.style.position='fixed';ghost.style.zIndex='999';ghost.style.pointerEvents='none';
-        document.body.appendChild(ghost);
-        return;
-      }
+      if(dragTodo){createGhost(dragTodo.title);return true;}
     }
-    // Unscheduled card drag
-    const unsched=e.target.closest('.unsched-card');
+    const unsched=target.closest('.unsched-card');
     if(unsched) {
-      const ds=dateStr(S.date), ent=entry(ds);
-      const cardTitle=unsched.querySelector('.unsched-title');
-      const allUnsched=ent.plans.filter(p=>!p.start);
-      dragUnsched=allUnsched.find(p=>escHtml(p.title)===(cardTitle?cardTitle.innerHTML.replace(/<[^>]*>/g,''):''));
-      if(!dragUnsched) {
-        // fallback: find by matching onclick attribute
-        const onclick=unsched.getAttribute('onclick');
-        if(onclick) {
-          const idMatch=onclick.match(/editItem\('([^']+)'\)/);
-          if(idMatch) dragUnsched=ent.plans.find(p=>p.id===idMatch[1]);
-        }
+      const ds=dateStr(S.date), ent2=entry(ds);
+      const onclick=unsched.getAttribute('onclick');
+      if(onclick) {
+        const idMatch=onclick.match(/editItem\('([^']+)'\)/);
+        if(idMatch) dragUnsched=ent2.plans.find(p=>p.id===idMatch[1]);
       }
-      if(dragUnsched) {
-        ghost=document.createElement('div');
-        ghost.className='drag-ghost';
-        ghost.textContent=dragUnsched.title;
-        ghost.style.position='fixed';ghost.style.zIndex='999';ghost.style.pointerEvents='none';
-        document.body.appendChild(ghost);
-        return;
-      }
+      if(dragUnsched){createGhost(dragUnsched.title);return true;}
     }
-    // Plan block drag
-    const planBlock=e.target.closest('.schedule-block.plan');
+    const planBlock=target.closest('.schedule-block.plan');
     if(planBlock) {
-      const ds=dateStr(S.date), ent=entry(ds);
+      const ds=dateStr(S.date), ent2=entry(ds);
       const onclick=planBlock.getAttribute('onclick');
       if(onclick) {
         const idMatch=onclick.match(/editItem\('([^']+)'\)/);
-        if(idMatch) dragPlanBlock=ent.plans.find(p=>p.id===idMatch[1]);
+        if(idMatch) dragPlanBlock=ent2.plans.find(p=>p.id===idMatch[1]);
       }
-      if(dragPlanBlock) {
-        ghost=document.createElement('div');
-        ghost.className='drag-ghost';
-        ghost.textContent='→ '+dragPlanBlock.title;
-        ghost.style.position='fixed';ghost.style.zIndex='999';ghost.style.pointerEvents='none';
-        document.body.appendChild(ghost);
-      }
+      if(dragPlanBlock){createGhost('→ '+dragPlanBlock.title);return true;}
     }
-    // Weekly entry drag
-    const weeklyEntry=e.target.closest('.weekly-entry');
-    if(weeklyEntry&&!ghost) {
+    const weeklyEntry=target.closest('.weekly-entry');
+    if(weeklyEntry) {
       const cell=weeklyEntry.closest('.weekly-day-cell');
       if(cell&&cell.dataset.date) {
         const fromDate=cell.dataset.date;
-        const ent=S.entries[fromDate];
-        if(ent&&ent.plans) {
-          // Find item by matching title text
-          const titleText=weeklyEntry.textContent.trim();
-          const planItems=ent.plans.filter(p=>p.type==='plan');
-          const match=planItems.find(p=>{
-            const display=(p.start?shortTime(p.start)+' ':'')+summarize(p.title);
-            return titleText.includes(summarize(p.title));
-          });
-          if(match) {
-            dragEntry={fromDate,item:match};
-            ghost=document.createElement('div');
-            ghost.className='drag-ghost';
-            ghost.textContent=match.title;
-            ghost.style.position='fixed';ghost.style.zIndex='999';ghost.style.pointerEvents='none';
-            document.body.appendChild(ghost);
-          }
+        const ent2=S.entries[fromDate];
+        if(ent2&&ent2.plans) {
+          const planItems=ent2.plans.filter(p=>p.type==='plan');
+          const match=planItems.find(p=>weeklyEntry.textContent.trim().includes(summarize(p.title)));
+          if(match){dragEntry={fromDate,item:match};createGhost(match.title);return true;}
         }
       }
     }
+    return false;
+  }
+
+  document.addEventListener('touchstart',e=>{
+    const draggable=e.target.closest('.todo-item,.unsched-card,.schedule-block.plan,.weekly-entry');
+    if(!draggable) return;
+    touchStartX=e.touches[0].clientX;
+    touchStartY=e.touches[0].clientY;
+    longPressReady=false;
+    longPressTimer=setTimeout(()=>{
+      longPressReady=true;
+      if(startDrag(e)&&navigator.vibrate) navigator.vibrate(50);
+    },LONG_PRESS_MS);
   },{passive:true});
 
   document.addEventListener('touchmove',e=>{
+    // Cancel long press if finger moved before timer fires
+    if(longPressTimer) {
+      const dx=e.touches[0].clientX-touchStartX, dy=e.touches[0].clientY-touchStartY;
+      if(Math.abs(dx)>MOVE_THRESHOLD||Math.abs(dy)>MOVE_THRESHOLD) cancelLongPress();
+    }
     if(!ghost||(!dragTodo&&!dragUnsched&&!dragPlanBlock&&!dragEntry)) return;
     const t=e.touches[0];
     ghost.style.left=t.clientX+'px';ghost.style.top=(t.clientY-20)+'px';ghost.style.display='block';
@@ -2098,7 +2091,13 @@ function initTouch() {
       }
     }
     ghost.remove(); ghost=null; dragTodo=null; dragUnsched=null; dragPlanBlock=null; dragEntry=null;
+    cancelLongPress();
   });
+
+  // Cancel on touchend without drag
+  document.addEventListener('touchend',e2=>{
+    cancelLongPress();
+  },{passive:true});
 }
 
 /* ================================================================
