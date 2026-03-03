@@ -1091,7 +1091,7 @@ function renderWeekly() {
 
   for(let i=0;i<goals.length;i++) {
     h+=`<div class="weekly-goal-item">
-      <input value="${escHtml(goals[i])}" onchange="updGoal('${wk}',${i},this.value)">
+      <input value="${escHtml(goals[i])}" oninput="updGoal('${wk}',${i},this.value)">
       <button onclick="rmGoal('${wk}',${i})">✕</button></div>`;
   }
   h+=`</div><button class="weekly-goal-add" onclick="addGoal('${wk}')">+ 목표 추가</button></div>
