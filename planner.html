@@ -991,6 +991,59 @@ function markModified(dateKey) {
 function persist() { save(); if(S.fbReady&&S.user) fbSync(); }
 
 /* ================================================================
+   CARRY OVER UNMATCHED PLANS → TODO
+   ================================================================ */
+function carryOverUnmatched() {
+  const today = dateStr(new Date());
+  const lastCheck = localStorage.getItem('pl_lastCarryOver');
+  const startDate = lastCheck || (() => {
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    return dateStr(y);
+  })();
+  if (startDate >= today) return;
+
+  const todoTitles = new Set(S.todos.map(t => t.title.trim().toLowerCase()));
+  let added = 0;
+
+  let d = parseDate(startDate);
+  const yesterdayDate = new Date(); yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+
+  while (dateStr(d) <= dateStr(yesterdayDate)) {
+    const ds = dateStr(d);
+    const e = S.entries[ds];
+    if (e && e.plans) {
+      const plans = e.plans.filter(p => p.type === 'plan');
+      const actTitles = new Set(
+        e.plans.filter(p => p.type === 'actual')
+               .map(p => p.title.trim().toLowerCase())
+      );
+      for (const p of plans) {
+        const key = p.title.trim().toLowerCase();
+        if (!actTitles.has(key) && !todoTitles.has(key)) {
+          S.todos.push({
+            id: uid(),
+            title: p.title,
+            estimatedMinutes: (p.start && p.end) ? timeToMin(p.end) - timeToMin(p.start) : 0,
+            pri: p.pri || 0,
+            completed: false,
+            createdAt: new Date().toISOString()
+          });
+          todoTitles.add(key);
+          added++;
+        }
+      }
+    }
+    d.setDate(d.getDate() + 1);
+  }
+
+  localStorage.setItem('pl_lastCarryOver', today);
+  if (added > 0) {
+    persist();
+    toast(`미실행 항목 ${added}건이 할 일에 추가되었습니다`);
+  }
+}
+
+/* ================================================================
    MATCH RATE
    ================================================================ */
 function matchRate(date) {
@@ -2598,6 +2651,7 @@ function init() {
   initFB();
   updateAuthUI();
   render();
+  carryOverUnmatched();
   initResize();
   initTouch();
   initSwipe();
