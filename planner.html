@@ -997,7 +997,7 @@ function persist() { save(); if(S.fbReady&&S.user) fbSync(); }
    ================================================================ */
 function carryOverUnmatched() {
   const today = dateStr(new Date());
-  const lastCheck = localStorage.getItem('pl_lastCarryOver');
+  const lastCheck = localStorage.getItem('pl_lastCarryOver_v2');
   const startDate = lastCheck || (() => {
     const y = new Date(); y.setDate(y.getDate() - 1);
     return dateStr(y);
@@ -1038,7 +1038,7 @@ function carryOverUnmatched() {
     d.setDate(d.getDate() + 1);
   }
 
-  localStorage.setItem('pl_lastCarryOver', today);
+  localStorage.setItem('pl_lastCarryOver_v2', today);
   if (added > 0) {
     persist();
     toast(`미실행 항목 ${added}건이 할 일에 추가되었습니다`);
