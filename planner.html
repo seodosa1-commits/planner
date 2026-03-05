@@ -15,8 +15,8 @@
   --actual-bg: #E6F4EA;
   --mismatch-color: #EA4335;
   --mismatch-bg: #FCE8E6;
-  --missed-color: #8C8C8C;
-  --missed-bg: #F0F0F0;
+  --missed-color: #5C5C5C;
+  --missed-bg: #E8E8E8;
   --todo-color: #F9AB00;
   --bg: #F5F7FA;
   --surface: #FFFFFF;
@@ -2166,7 +2166,7 @@ function fbSync() {
 function fbPull() {
   if(!S.fbReady||!S.user) return;
   const db=firebase.firestore(), u=S.user.uid;
-  db.collection('users').doc(u).collection('entries').get().then(snap=>{
+  const entriesP = db.collection('users').doc(u).collection('entries').get().then(snap=>{
     snap.forEach(doc=>{
       const d=doc.data(),loc=S.entries[doc.id];
       if(!loc) { S.entries[doc.id]=d; }
@@ -2178,7 +2178,7 @@ function fbPull() {
     });
     save(); render();
   });
-  db.collection('users').doc(u).collection('data').doc('todos').get().then(doc=>{
+  const todoP = db.collection('users').doc(u).collection('data').doc('todos').get().then(doc=>{
     if(doc.exists&&doc.data().items){
       const r=doc.data();
       const remoteTime=r.lastModified||0;
@@ -2199,6 +2199,8 @@ function fbPull() {
       }
     }
   });
+  // entries + todos 모두 동기화된 후 미실행 이월 실행
+  Promise.all([entriesP, todoP]).then(() => { carryOverUnmatched(); renderTodos(); });
 }
 
 function fbListen() {
@@ -2653,7 +2655,8 @@ function init() {
   initFB();
   updateAuthUI();
   render();
-  carryOverUnmatched();
+  // Firebase 미사용 시에만 여기서 실행 (Firebase 사용 시 fbPull 완료 후 실행)
+  if(!localStorage.getItem('fb_config')) carryOverUnmatched();
   initResize();
   initTouch();
   initSwipe();
