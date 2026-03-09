@@ -13,6 +13,8 @@
   --plan-bg: #E8F0FE;
   --actual-color: #34A853;
   --actual-bg: #E6F4EA;
+  --incomplete-color: #F9A825;
+  --incomplete-bg: #FFF8E1;
   --mismatch-color: #EA4335;
   --mismatch-bg: #FCE8E6;
   --missed-color: #3D3D3D;
@@ -231,6 +233,7 @@ body {
 }
 .cell-entry.plan { background: var(--plan-bg); color: var(--plan-color); border-left: 2px solid var(--plan-color); }
 .cell-entry.actual { background: var(--actual-bg); color: var(--actual-color); border-left: 2px solid var(--actual-color); }
+.cell-entry.incomplete { background: var(--incomplete-bg); color: var(--incomplete-color); border-left: 2px solid var(--incomplete-color); }
 .cell-entry.missed { background: var(--missed-bg); border-left-color: var(--missed-color); color: var(--missed-color); }
 .cell-entry .ce-time { font-weight: 600; }
 .cell-more { font-size: 9px; color: var(--text-secondary); padding: 0 3px; }
@@ -283,6 +286,7 @@ body {
 }
 .weekly-entry.plan { background: var(--plan-bg); color: var(--plan-color); border-left: 2px solid var(--plan-color); }
 .weekly-entry.actual { background: var(--actual-bg); color: var(--actual-color); border-left: 2px solid var(--actual-color); }
+.weekly-entry.incomplete { background: var(--incomplete-bg); color: var(--incomplete-color); border-left: 2px solid var(--incomplete-color); }
 .weekly-summary {
   padding: 12px 16px; background: var(--surface);
   border-top: 1px solid var(--border-light);
@@ -358,6 +362,9 @@ body {
 .schedule-block.actual {
   background: var(--actual-bg); border-left: 3px solid var(--actual-color); color: var(--actual-color);
 }
+.schedule-block.incomplete {
+  background: var(--incomplete-bg); border-left: 3px solid var(--incomplete-color); color: var(--incomplete-color);
+}
 .schedule-block .block-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .schedule-block .block-time { font-size: 10px; opacity: 0.8; }
 .resize-handle {
@@ -386,6 +393,11 @@ body {
 .weekly-entry.actual.pri-1, .weekly-entry.actual.pri-2, .weekly-entry.actual.pri-3,
 .schedule-block.actual.pri-1, .schedule-block.actual.pri-2, .schedule-block.actual.pri-3 {
   background: var(--actual-bg); border-left-color: var(--actual-color); color: var(--actual-color);
+}
+.cell-entry.incomplete.pri-1, .cell-entry.incomplete.pri-2, .cell-entry.incomplete.pri-3,
+.weekly-entry.incomplete.pri-1, .weekly-entry.incomplete.pri-2, .weekly-entry.incomplete.pri-3,
+.schedule-block.incomplete.pri-1, .schedule-block.incomplete.pri-2, .schedule-block.incomplete.pri-3 {
+  background: var(--incomplete-bg); border-left-color: var(--incomplete-color); color: var(--incomplete-color);
 }
 .todo-item.pri-3 { background: #FDE8E8; border-color: #DC2626; color: #DC2626; }
 .todo-item.pri-2 { background: #FFF3E0; border-color: #E65100; color: #E65100; }
@@ -660,6 +672,7 @@ body {
 .unsched-card:hover { box-shadow: var(--shadow-lg); }
 .unsched-card.plan { background: var(--plan-bg); border-left: 3px solid var(--plan-color); color: var(--plan-color); }
 .unsched-card.actual { background: var(--actual-bg); border-left: 3px solid var(--actual-color); color: var(--actual-color); }
+.unsched-card.incomplete { background: var(--incomplete-bg); border-left: 3px solid var(--incomplete-color); color: var(--incomplete-color); }
 .unsched-card.pri-3 { background: #FDE8E8; border-left-color: #DC2626; color: #DC2626; }
 .unsched-card.pri-2 { background: #FFF3E0; border-left-color: #E65100; color: #E65100; }
 .unsched-card.pri-1 { background: #FFF8E1; border-left-color: #F9A825; color: #F9A825; }
@@ -732,7 +745,8 @@ body {
       <label>유형</label>
       <select id="modalType">
         <option value="plan">계획</option>
-        <option value="actual">실행</option>
+        <option value="actual">완료</option>
+        <option value="incomplete">미완</option>
       </select>
     </div>
     <div class="modal-field">
@@ -1054,7 +1068,7 @@ function matchRate(date) {
   const e=entry(date);
   if(!e.plans||!e.plans.length) return null;
   const plans=e.plans.filter(p=>p.type==='plan'&&p.start&&p.end);
-  const acts=e.plans.filter(p=>p.type==='actual'&&p.start&&p.end);
+  const acts=e.plans.filter(p=>(p.type==='actual'||p.type==='incomplete')&&p.start&&p.end);
   if(!plans.length) return null;
 
   const matched=[], unmatched=[], unplanned=[];
@@ -1199,6 +1213,7 @@ function renderMonthly() {
     if(!other&&ent&&ent.plans&&ent.plans.length) {
       const plansOnly=ent.plans.filter(p=>p.type==='plan');
       const actTitles=new Set(ent.plans.filter(p=>p.type==='actual').map(p=>p.title.trim().toLowerCase()));
+      const incTitles=new Set(ent.plans.filter(p=>p.type==='incomplete').map(p=>p.title.trim().toLowerCase()));
       if(plansOnly.length>0) h+=`<span class="cell-count">${plansOnly.length}</span>`;
       const sorted=[...plansOnly].sort((a,b)=>(a.start?timeToMin(a.start):Infinity)-(b.start?timeToMin(b.start):Infinity));
       const abbrevMap=buildDayAbbrevMap(sorted,S.legalKeywords);
@@ -1207,9 +1222,11 @@ function renderMonthly() {
         const abbr=abbrevMap.get(it.id);
         const label=abbr?escHtml(abbr):escHtml(summarize(it.title));
         const tip=abbr?` title="${escHtml(it.title)}"`:'';
-        const done=actTitles.has(it.title.trim().toLowerCase());
+        const key=it.title.trim().toLowerCase();
+        const done=actTitles.has(key);
+        const partial=incTitles.has(key);
         const past=ds<today;
-        const entryClass=done?'actual':past?'missed':'plan';
+        const entryClass=done?'actual':partial?'incomplete':past?'missed':'plan';
 
         h+=`<div class="cell-entry ${entryClass}${priClass(it.pri)}"${tip} draggable="true"
              ondragstart="entryDragStart(event,'${ds}','${it.id}')">${label}</div>`;
@@ -1255,6 +1272,7 @@ function renderWeekly() {
     const ds=dateStr(d), mr=matchRate(ds);
     const ent=S.entries[ds], items=ent?(ent.plans||[]).filter(p=>p.type==='plan'):[];
     const actTitles=new Set(ent?(ent.plans||[]).filter(p=>p.type==='actual').map(p=>p.title.trim().toLowerCase()):[]);
+    const incTitles=new Set(ent?(ent.plans||[]).filter(p=>p.type==='incomplete').map(p=>p.title.trim().toLowerCase()):[]);
 
     h+=`<div class="weekly-day">`;
     h+=`<div class="weekly-day-header ${ds===today?'today':''}" onclick="goDate('${ds}')">
@@ -1267,9 +1285,11 @@ function renderWeekly() {
          ondrop="calDrop(event,'${ds}')">`;
     const sorted=[...items].sort((a,b)=>(a.start?timeToMin(a.start):Infinity)-(b.start?timeToMin(b.start):Infinity));
     for(const it of sorted.slice(0,8)) {
-      const done=actTitles.has(it.title.trim().toLowerCase());
+      const key=it.title.trim().toLowerCase();
+      const done=actTitles.has(key);
+      const partial=incTitles.has(key);
       const past=ds<today;
-      const entryClass=done?'actual':past?'missed':'plan';
+      const entryClass=done?'actual':partial?'incomplete':past?'missed':'plan';
       h+=`<div class="weekly-entry ${entryClass}${priClass(it.pri)}" draggable="true"
            ondragstart="entryDragStart(event,'${ds}','${it.id}')">${it.start?shortTime(it.start)+' ':''}${escHtml(summarize(it.title))}</div>`;
     }
@@ -1292,9 +1312,9 @@ function renderDaily() {
   const d=S.date, ds=dateStr(d), e=entry(ds), mr=matchRate(ds);
   const today=dateStr(new Date()), isToday=ds===today;
   const plans=e.plans.filter(p=>p.type==='plan'&&p.start&&p.end);
-  const acts=e.plans.filter(p=>p.type==='actual'&&p.start&&p.end);
+  const acts=e.plans.filter(p=>(p.type==='actual'||p.type==='incomplete')&&p.start&&p.end);
   const unschedPlans=e.plans.filter(p=>p.type==='plan'&&!p.start);
-  const unschedActs=e.plans.filter(p=>p.type==='actual'&&!p.start);
+  const unschedActs=e.plans.filter(p=>(p.type==='actual'||p.type==='incomplete')&&!p.start);
   const slots=allSlots();
 
   let mc='#CCC',mv='-',fv='-';
@@ -1336,7 +1356,7 @@ function renderDaily() {
            ondragstart="unschedDragStart(event,'${it.id}')"
            onclick="editItem('${it.id}')">
         <div class="unsched-title">${escHtml(it.title)}</div>
-        <div class="unsched-type">${it.type==='plan'?'계획':'실행'}${it.est?` · ${it.est}분`:''}</div>
+        <div class="unsched-type">${it.type==='plan'?'계획':it.type==='actual'?'완료':'미완'}${it.est?` · ${it.est}분`:''}</div>
       </div>`;
     }
     h+=`</div></div>`;
@@ -1398,7 +1418,7 @@ function renderDaily() {
     const top=((timeToMin(it.start)-SLOT0)/SLOTD)*SLOTH;
     const ht=((timeToMin(it.end)-timeToMin(it.start))/SLOTD)*SLOTH;
     const lPct=lay.col/lay.total*100, wPct=100/lay.total;
-    h+=`<div class="schedule-block actual${priClass(it.pri)}" data-item-id="${it.id}" style="top:${top}px;height:${Math.max(ht,20)}px;left:${lPct}%;width:${wPct}%;right:auto"
+    h+=`<div class="schedule-block ${it.type}${priClass(it.pri)}" data-item-id="${it.id}" style="top:${top}px;height:${Math.max(ht,20)}px;left:${lPct}%;width:${wPct}%;right:auto"
          onclick="editItem('${it.id}')">
       <div class="block-title">${escHtml(it.title)}</div>
       <div class="block-time">${it.start}-${it.end}</div>
@@ -1487,7 +1507,7 @@ function renderReport() {
         const k=legalAbbrev(p.title,S.legalKeywords)||p.title;
         if(!am[k]) am[k]={plan:0,actual:0}; am[k].plan+=dur; tp++;
       }
-      for(const a of ent.plans.filter(x=>x.type==='actual'&&x.start&&x.end)) {
+      for(const a of ent.plans.filter(x=>(x.type==='actual'||x.type==='incomplete')&&x.start&&x.end)) {
         const dur=timeToMin(a.end)-timeToMin(a.start);
         const k=legalAbbrev(a.title,S.legalKeywords)||a.title;
         if(!am[k]) am[k]={plan:0,actual:0}; am[k].actual+=dur; ta++;
@@ -1814,12 +1834,15 @@ function slotDrop(event,time,type) {
     const pl=e.plans.find(p=>p.id===planId);
     if(!pl) return;
     if(type==='actual') {
-      // 실행 컬럼에 드롭 → 실행 항목 생성 모달
+      // 실행 컬럼에 드롭 → 실행 항목 생성 모달 (드롭 위치 기준 시간)
+      const dur=timeToMin(pl.end)-timeToMin(pl.start);
+      const dropStart=time;
+      const dropEnd=minToTime(Math.min(timeToMin(time)+dur,SLOT1));
       S.editingId=null;
       document.getElementById('modalTitle').textContent='실행 항목 추가';
       document.getElementById('modalTitleInput').value=pl.title;
-      document.getElementById('modalStart').value=pl.start;
-      document.getElementById('modalEnd').value=pl.end;
+      document.getElementById('modalStart').value=dropStart;
+      document.getElementById('modalEnd').value=dropEnd;
       document.getElementById('modalType').value='actual';
       document.getElementById('modalPriority').value=String(pl.pri||0);
       document.getElementById('modalDeleteBtn').style.display='none';
@@ -2422,12 +2445,15 @@ function initTouch() {
         toast(`"${dragUnsched.title}" 시간 배치됨: ${slot.dataset.time}`);
       } else if(dragPlanBlock&&slot&&slot.dataset.time) {
         if(slot.dataset.type==='actual') {
-          // Plan block → actual column: open modal
+          // Plan block → actual column: open modal (드롭 위치 기준 시간)
+          const dur=timeToMin(dragPlanBlock.end)-timeToMin(dragPlanBlock.start);
+          const dropStart=slot.dataset.time;
+          const dropEnd=minToTime(Math.min(timeToMin(slot.dataset.time)+dur,SLOT1));
           S.editingId=null;
           document.getElementById('modalTitle').textContent='실행 항목 추가';
           document.getElementById('modalTitleInput').value=dragPlanBlock.title;
-          document.getElementById('modalStart').value=dragPlanBlock.start;
-          document.getElementById('modalEnd').value=dragPlanBlock.end;
+          document.getElementById('modalStart').value=dropStart;
+          document.getElementById('modalEnd').value=dropEnd;
           document.getElementById('modalType').value='actual';
           document.getElementById('modalPriority').value=String(dragPlanBlock.pri||0);
           document.getElementById('modalDeleteBtn').style.display='none';
@@ -2568,8 +2594,8 @@ function doSearch(q) {
 
   let h='';
   for(const r of results.slice(0,50)){
-    const typeLabel = r.type==='plan'?'계획':r.type==='actual'?'실행':r.type==='memo'?'메모':'할 일';
-    const typeClass = r.type==='plan'?'plan-type':r.type==='actual'?'actual-type':r.type==='memo'?'memo-type':'todo-type';
+    const typeLabel = r.type==='plan'?'계획':r.type==='actual'?'완료':r.type==='incomplete'?'미완':r.type==='memo'?'메모':'할 일';
+    const typeClass = r.type==='plan'?'plan-type':r.type==='actual'?'actual-type':r.type==='incomplete'?'actual-type':r.type==='memo'?'memo-type':'todo-type';
     const dateLabel = r.date?formatDateLabel(r.date):'';
     const highlighted = highlightMatch(r.snippet,q);
     const titleHL = highlightMatch(r.title,q);
