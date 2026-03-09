@@ -709,7 +709,10 @@ body {
 <!-- App Container -->
 <div class="app-container">
   <!-- Todo Panel (PC: sidebar, Mobile: overlay) -->
-  <aside class="todo-panel" id="todoPanel">
+  <aside class="todo-panel" id="todoPanel"
+         ondragover="event.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="todoPanelDrop(event)">
     <div class="todo-header">
       <span>📝 할 일 목록</span>
       <span id="todoCount" style="background:var(--primary);color:white;border-radius:10px;padding:2px 8px;font-size:11px">0</span>
@@ -1868,6 +1871,41 @@ function slotDrop(event,time,type) {
   markModified(ds);
   persist(); render();
   toast(`"${todo.title}" 추가됨`);
+}
+
+function todoPanelDrop(event) {
+  event.preventDefault(); event.stopPropagation();
+  event.currentTarget.classList.remove('drag-over');
+  const data=event.dataTransfer.getData('text/plain');
+
+  // Handle plan block or unscheduled item drop → convert to todo
+  let itemId=null, prefix='';
+  if(data.startsWith('planblock:')) { itemId=data.slice(10); prefix='planblock'; }
+  else if(data.startsWith('unsched:')) { itemId=data.slice(8); prefix='unsched'; }
+  else if(data.startsWith('entry:')) {
+    const parts=data.split(':');
+    const fromDate=parts[1]; itemId=parts[2];
+    const src=entry(fromDate);
+    const idx=src.plans.findIndex(p=>p.id===itemId);
+    if(idx<0) return;
+    const item=src.plans.splice(idx,1)[0];
+    S.todos.push({id:uid(),title:item.title,estimatedMinutes:item.est||0,pri:item.pri||0,completed:false,createdAt:new Date().toISOString()});
+    markModified(fromDate);
+    persist(); render();
+    toast(`"${item.title}" 할 일 목록으로 이동`);
+    return;
+  }
+  else return; // ignore todo-to-todo drops
+
+  if(!itemId) return;
+  const ds=dateStr(S.date), e=entry(ds);
+  const idx=e.plans.findIndex(p=>p.id===itemId);
+  if(idx<0) return;
+  const item=e.plans.splice(idx,1)[0];
+  S.todos.push({id:uid(),title:item.title,estimatedMinutes:item.est||0,pri:item.pri||0,completed:false,createdAt:new Date().toISOString()});
+  markModified(ds);
+  persist(); render();
+  toast(`"${item.title}" 할 일 목록으로 이동`);
 }
 
 function calDrop(event,ds) {
