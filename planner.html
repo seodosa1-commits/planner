@@ -851,7 +851,8 @@ const S = {
   fbReady: false,
   user: null,
   unsubs: [],
-  legalKeywords: []
+  legalKeywords: [],
+  dismissedCarryOvers: []
 };
 
 const DEFAULT_LEGAL_KEYWORDS = [
@@ -983,12 +984,14 @@ function save() {
   localStorage.setItem('pl_entries', JSON.stringify(S.entries));
   localStorage.setItem('pl_todos', JSON.stringify(S.todos));
   localStorage.setItem('pl_goals', JSON.stringify(S.weeklyGoals));
+  localStorage.setItem('pl_dismissed', JSON.stringify(S.dismissedCarryOvers));
 }
 function load() {
   try {
     const e=localStorage.getItem('pl_entries'); if(e) S.entries=JSON.parse(e);
     const t=localStorage.getItem('pl_todos'); if(t) S.todos=JSON.parse(t);
     const g=localStorage.getItem('pl_goals'); if(g) S.weeklyGoals=JSON.parse(g);
+    const dc=localStorage.getItem('pl_dismissed'); if(dc) S.dismissedCarryOvers=JSON.parse(dc);
   } catch(e) { console.error(e); }
 }
 function loadKeywords() {
@@ -1023,6 +1026,7 @@ function carryOverUnmatched() {
   if (startDate >= today) return;
 
   const todoTitles = new Set(S.todos.map(t => t.title.trim().toLowerCase()));
+  const dismissed = new Set(S.dismissedCarryOvers || []);
   let added = 0;
 
   let d = parseDate(startDate);
@@ -1039,7 +1043,7 @@ function carryOverUnmatched() {
       );
       for (const p of plans) {
         const key = p.title.trim().toLowerCase();
-        if (!actTitles.has(key) && !todoTitles.has(key)) {
+        if (!actTitles.has(key) && !todoTitles.has(key) && !dismissed.has(key)) {
           S.todos.push({
             id: uid(),
             title: p.title,
@@ -1709,6 +1713,11 @@ function todoToggle(id) {
 }
 
 function todoDel(id) {
+  const t=S.todos.find(x=>x.id===id);
+  if(t&&t.completed){
+    const key=t.title.trim().toLowerCase();
+    if(!S.dismissedCarryOvers.includes(key)) S.dismissedCarryOvers.push(key);
+  }
   S.todos=S.todos.filter(x=>x.id!==id);
   persist(); renderTodos();
 }
@@ -2221,7 +2230,7 @@ function fbSync() {
     const ref=db.collection('users').doc(u).collection('entries').doc(date);
     ref.set(ent).catch(console.error);
   }
-  db.collection('users').doc(u).collection('data').doc('todos').set({items:S.todos, lastModified: now}).catch(console.error);
+  db.collection('users').doc(u).collection('data').doc('todos').set({items:S.todos, dismissed:S.dismissedCarryOvers, lastModified: now}).catch(console.error);
   db.collection('users').doc(u).collection('data').doc('goals').set({...S.weeklyGoals, lastModified: now}).catch(console.error);
 }
 
@@ -2245,7 +2254,7 @@ function fbPull() {
       const r=doc.data();
       const remoteTime=r.lastModified||0;
       const localTime=S._todosLastModified||0;
-      if(remoteTime>localTime){S.todos=r.items;S._todosLastModified=remoteTime;save();renderTodos();}
+      if(remoteTime>localTime){S.todos=r.items;if(r.dismissed)S.dismissedCarryOvers=r.dismissed;S._todosLastModified=remoteTime;save();renderTodos();}
     }
   });
   db.collection('users').doc(u).collection('data').doc('goals').get().then(doc=>{
