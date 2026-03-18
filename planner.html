@@ -1038,15 +1038,17 @@ function carryOverUnmatched() {
     if (e && e.plans) {
       const plans = e.plans.filter(p => p.type === 'plan');
       const actTitles = new Set(
-        e.plans.filter(p => p.type === 'actual')
+        e.plans.filter(p => p.type === 'actual' || p.type === 'incomplete')
                .map(p => p.title.trim().toLowerCase())
       );
       for (const p of plans) {
         const key = p.title.trim().toLowerCase();
-        if (!actTitles.has(key) && !todoTitles.has(key) && !dismissed.has(key)) {
+        const dismissKey = ds + '::' + key;
+        if (!actTitles.has(key) && !todoTitles.has(key) && !dismissed.has(dismissKey)) {
           S.todos.push({
             id: uid(),
             title: p.title,
+            sourceDate: ds,
             estimatedMinutes: (p.start && p.end) ? timeToMin(p.end) - timeToMin(p.start) : 0,
             pri: p.pri || 0,
             completed: false,
@@ -1716,7 +1718,8 @@ function todoDel(id) {
   const t=S.todos.find(x=>x.id===id);
   if(t&&t.completed){
     const key=t.title.trim().toLowerCase();
-    if(!S.dismissedCarryOvers.includes(key)) S.dismissedCarryOvers.push(key);
+    const dismissKey=(t.sourceDate||'')+'::'+key;
+    if(!S.dismissedCarryOvers.includes(dismissKey)) S.dismissedCarryOvers.push(dismissKey);
   }
   S.todos=S.todos.filter(x=>x.id!==id);
   persist(); renderTodos();
