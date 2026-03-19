@@ -2242,7 +2242,9 @@ function handleAuth() {
       S.unsubs.forEach(fn=>fn()); S.unsubs=[];
     }
   } else {
-    firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>toast('로그인 실패'));
+    const gp=new firebase.auth.GoogleAuthProvider();
+    gp.setCustomParameters({prompt:'select_account'});
+    firebase.auth().signInWithPopup(gp).catch(e=>toast('로그인 실패'));
   }
 }
 
