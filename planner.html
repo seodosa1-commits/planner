@@ -1032,6 +1032,7 @@ function carryOverUnmatched() {
                .map(p => p.title.trim().toLowerCase())
       );
       for (const p of plans) {
+        if (p.carriedOver) continue;
         const key = p.title.trim().toLowerCase();
         const dismissKey = ds + '::' + key;
         if (!actTitles.has(key) && !todoTitles.has(key) && !dismissed.has(dismissKey)) {
@@ -1045,6 +1046,7 @@ function carryOverUnmatched() {
             createdAt: new Date().toISOString()
           });
           todoTitles.add(key);
+          p.carriedOver = true;
           added++;
         }
       }
