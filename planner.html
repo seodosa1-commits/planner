@@ -787,20 +787,6 @@ body {
       </div>
     </div>
     <div class="settings-section">
-      <h3>Firebase 설정 (멀티 디바이스 동기화)</h3>
-      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">Firebase 프로젝트의 웹 앱 설정에서 config 값을 입력하세요.</p>
-      <input id="fbApiKey" placeholder="apiKey">
-      <input id="fbAuthDomain" placeholder="authDomain">
-      <input id="fbProjectId" placeholder="projectId">
-      <input id="fbStorageBucket" placeholder="storageBucket">
-      <input id="fbMsgSenderId" placeholder="messagingSenderId">
-      <input id="fbAppId" placeholder="appId">
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="btn btn-primary" onclick="saveFirebaseConfig()">Firebase 저장</button>
-        <button class="btn btn-secondary" onclick="clearFirebaseConfig()">Firebase 해제</button>
-      </div>
-    </div>
-    <div class="settings-section">
       <h3>법률 키워드 (월간 뷰 제목 축약)</h3>
       <div class="kw-chips" id="kwChips"></div>
       <div class="kw-add-row">
@@ -2115,38 +2101,11 @@ function resetKeywords() {
 }
 
 function showSettings() {
-  const cfg=JSON.parse(localStorage.getItem('fb_config')||'{}');
-  document.getElementById('fbApiKey').value=cfg.apiKey||'';
-  document.getElementById('fbAuthDomain').value=cfg.authDomain||'';
-  document.getElementById('fbProjectId').value=cfg.projectId||'';
-  document.getElementById('fbStorageBucket').value=cfg.storageBucket||'';
-  document.getElementById('fbMsgSenderId').value=cfg.messagingSenderId||'';
-  document.getElementById('fbAppId').value=cfg.appId||'';
   renderKeywordList();
   document.getElementById('settingsModal').classList.add('active');
 }
 function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
 
-function saveFirebaseConfig() {
-  const cfg={
-    apiKey:document.getElementById('fbApiKey').value.trim(),
-    authDomain:document.getElementById('fbAuthDomain').value.trim(),
-    projectId:document.getElementById('fbProjectId').value.trim(),
-    storageBucket:document.getElementById('fbStorageBucket').value.trim(),
-    messagingSenderId:document.getElementById('fbMsgSenderId').value.trim(),
-    appId:document.getElementById('fbAppId').value.trim()
-  };
-  if(!cfg.apiKey||!cfg.projectId){toast('apiKey와 projectId는 필수');return;}
-  localStorage.setItem('fb_config',JSON.stringify(cfg));
-  toast('Firebase 설정 저장됨. 새로고침합니다.');
-  setTimeout(()=>location.reload(),1000);
-}
-
-function clearFirebaseConfig() {
-  localStorage.removeItem('fb_config');
-  S.fbReady=false; S.user=null; updateAuthUI();
-  toast('Firebase 해제됨');
-}
 
 /* ================================================================
    EXPORT / IMPORT
@@ -2182,11 +2141,15 @@ function importData(event) {
    FIREBASE
    ================================================================ */
 function initFB() {
-  const raw=localStorage.getItem('fb_config');
-  if(!raw) return;
+  const cfg={
+    apiKey:"AIzaSyBFK1LKXX1avio0XFiIJUnvpYztO65mCXg",
+    authDomain:"planner-6c0be.firebaseapp.com",
+    projectId:"planner-6c0be",
+    storageBucket:"planner-6c0be.firebasestorage.app",
+    messagingSenderId:"397763008882",
+    appId:"1:397763008882:web:3cc38c0cd31905bb12a5eb"
+  };
   try{
-    const cfg=JSON.parse(raw);
-    if(!cfg.apiKey||!cfg.projectId) return;
     const s1=document.createElement('script');
     s1.src='https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js';
     s1.onload=()=>{
@@ -2212,7 +2175,7 @@ function initFB() {
 }
 
 function handleAuth() {
-  if(!S.fbReady){toast('설정에서 Firebase를 구성해주세요');showSettings();return;}
+  if(!S.fbReady){toast('Firebase 초기화 중...');return;}
   if(S.user){
     if(confirm('로그아웃하시겠습니까?')){
       firebase.auth().signOut(); S.user=null; updateAuthUI();
