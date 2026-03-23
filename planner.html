@@ -352,6 +352,17 @@ body {
   cursor: pointer; transition: background 0.1s;
 }
 .slot-row.half { border-bottom: 1px solid var(--border-light); }
+
+.now-line {
+  position: absolute; left: 0; right: 0; z-index: 50;
+  height: 2px; background: #EF4444;
+  pointer-events: none;
+}
+.now-line::before {
+  content: ''; position: absolute; left: 0; top: -4px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #EF4444;
+}
 .slot-row:hover { background: rgba(255,255,255,0.03); }
 
 .schedule-block {
@@ -1232,7 +1243,34 @@ function render() {
     const tw=document.querySelector('.daily-timeline-wrapper');
     if(tw) tw.scrollTop=savedScrollTop;
   }
+  // 현재 시간선 자동 스크롤 (최초 렌더 시)
+  if(S.view==='daily'&&savedScrollTop==null){
+    const nl=document.querySelector('.now-line');
+    if(nl){
+      const tw=document.querySelector('.daily-timeline-wrapper');
+      if(tw) tw.scrollTop=Math.max(0,nl.offsetTop-tw.clientHeight/3);
+    }
+  }
+  updateNowLineInterval();
   renderTodos();
+}
+
+let _nowLineTimer=null;
+function updateNowLineInterval(){
+  if(_nowLineTimer){clearInterval(_nowLineTimer);_nowLineTimer=null;}
+  if(S.view!=='daily') return;
+  const ds=dateStr(S.date), today=dateStr(new Date());
+  if(ds!==today) return;
+  _nowLineTimer=setInterval(()=>{
+    const nl=document.querySelector('.now-line');
+    const ds2=dateStr(S.date), today2=dateStr(new Date());
+    if(S.view!=='daily'||ds2!==today2){clearInterval(_nowLineTimer);_nowLineTimer=null;return;}
+    const now=new Date(), nowMin=now.getHours()*60+now.getMinutes();
+    if(nowMin>=SLOT0&&nowMin<=SLOT1){
+      if(nl) nl.style.top=((nowMin-SLOT0)/SLOTD)*SLOTH+'px';
+      else render(); // now-line이 없으면 다시 렌더
+    } else if(nl) nl.remove();
+  },60000);
 }
 
 /* ================================================================
@@ -1486,7 +1524,18 @@ function renderDaily() {
       <div class="resize-handle"></div>
     </div>`;
   }
-  h+=`</div></div></div>`;
+  h+=`</div>`;
+
+  // Now line (today only)
+  if(isToday) {
+    const now=new Date(), nowMin=now.getHours()*60+now.getMinutes();
+    if(nowMin>=SLOT0&&nowMin<=SLOT1) {
+      const top=((nowMin-SLOT0)/SLOTD)*SLOTH;
+      h+=`<div class="now-line" style="top:${top}px"></div>`;
+    }
+  }
+
+  h+=`</div></div>`;
 
   // Detail stats
   if(mr&&(mr.matched.length||mr.unmatched.length||mr.unplanned.length)) {
