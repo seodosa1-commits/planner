@@ -836,9 +836,9 @@ body {
       </select>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closeModal()">취소</button>
-      <button class="btn btn-danger" id="modalDeleteBtn" style="display:none" onclick="deleteSchedule()">삭제</button>
-      <button class="btn btn-primary" onclick="saveSchedule()">저장</button>
+      <button type="button" class="btn btn-secondary" onclick="closeModal()">취소</button>
+      <button type="button" class="btn btn-danger" id="modalDeleteBtn" style="display:none" onclick="deleteSchedule()">삭제</button>
+      <button type="button" class="btn btn-primary" onclick="saveSchedule()">저장</button>
     </div>
   </div>
 </div>
@@ -2092,7 +2092,10 @@ function editItem(id) {
   setTimeout(()=>document.getElementById('modalTitleInput').focus(),100);
 }
 
+let _saving=false;
 function saveSchedule() {
+  if(_saving) return;
+  _saving=true;
   const title=document.getElementById('modalTitleInput').value.trim();
   const start=document.getElementById('modalStart').value;
   const end=document.getElementById('modalEnd').value;
@@ -2113,6 +2116,7 @@ function saveSchedule() {
   markModified(ds);
   persist(); closeModal(); render();
   toast('저장되었습니다');
+  setTimeout(()=>_saving=false,300);
 }
 
 function deleteSchedule() {
