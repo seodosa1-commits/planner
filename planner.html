@@ -394,6 +394,14 @@ body {
   opacity: 0; transition: opacity 0.2s;
 }
 .schedule-block:hover .resize-handle::after { opacity: 1; }
+.drag-create-preview {
+  position: absolute; left: 3px; right: 3px; z-index: 4;
+  border-radius: var(--radius-sm); pointer-events: none;
+  border: 2px dashed var(--primary); background: rgba(107, 165, 231, 0.12);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: var(--primary); font-weight: 600;
+}
+.timeline-col.drag-creating .slot-row { pointer-events: none; }
 /* Priority colors override */
 .schedule-block.pri-3 { background: rgba(220,38,38,0.15); border-left-color: #F87171; color: #F87171; }
 .schedule-block.pri-2 { background: rgba(230,81,0,0.15); border-left-color: #FB923C; color: #FB923C; }
@@ -2062,7 +2070,8 @@ function populateTimeOpts() {
   ss.innerHTML=h; se.innerHTML=h;
 }
 
-function openAdd(time,type) {
+function openAdd(time,type,fromDrag) {
+  if(!fromDrag&&window._dragCreated) return;
   S.editingId=null;
   document.getElementById('modalTitle').textContent='일정 추가';
   document.getElementById('modalTitleInput').value='';
@@ -2806,6 +2815,147 @@ function initMobileTooltip() {
 }
 
 /* ================================================================
+   DRAG-TO-CREATE ON TIMELINE
+   ================================================================ */
+window._dragCreated=false;
+function initDragCreate() {
+  let active=false, colEl=null, preview=null, colType='plan';
+  let startMin=0, curMin=0, colRect=null;
+
+  function yToMin(y) {
+    const rect=colEl?colEl.getBoundingClientRect():colRect;
+    const rel=y-rect.top;
+    const raw=rel/SLOTH*SLOTD+SLOT0;
+    return Math.round(raw/10)*10; // 10분 단위 스냅
+  }
+
+  function updatePreview() {
+    if(!preview||!colEl) return;
+    const lo=Math.max(Math.min(startMin,curMin),SLOT0);
+    const hi=Math.min(Math.max(startMin,curMin),SLOT1);
+    if(hi-lo<10){preview.style.display='none';return;}
+    const top=(lo-SLOT0)/SLOTD*SLOTH;
+    const ht=(hi-lo)/SLOTD*SLOTH;
+    preview.style.top=top+'px';
+    preview.style.height=ht+'px';
+    preview.style.display='flex';
+    preview.textContent=minToTime(lo)+' - '+minToTime(hi);
+  }
+
+  function finish() {
+    if(!active) return;
+    const lo=Math.max(Math.min(startMin,curMin),SLOT0);
+    const hi=Math.min(Math.max(startMin,curMin),SLOT1);
+    if(preview){preview.remove();preview=null;}
+    if(colEl){colEl.classList.remove('drag-creating');colEl=null;}
+    active=false;
+    if(hi-lo>=10) {
+      window._dragCreated=true;
+      setTimeout(()=>window._dragCreated=false, 300);
+      openAdd(minToTime(lo), colType, true);
+      document.getElementById('modalEnd').value=minToTime(hi);
+    } else {
+      // 드래그 없이 클릭만 한 경우 → 기존 클릭 동작
+      openAdd(minToTime(lo), colType, true);
+    }
+  }
+
+  function cancel() {
+    if(preview){preview.remove();preview=null;}
+    if(colEl){colEl.classList.remove('drag-creating');colEl=null;}
+    active=false;
+  }
+
+  // Mouse events
+  document.addEventListener('mousedown', e=>{
+    if(e.button!==0) return;
+    if(e.target.closest('.resize-handle')||e.target.closest('.schedule-block')) return;
+    const slot=e.target.closest('.slot-row');
+    const col=e.target.closest('.timeline-col');
+    if(!slot||!col) return;
+    if(S.view!=='daily') return;
+    e.preventDefault();
+    colEl=col;
+    colType=slot.dataset.type||'plan';
+    colRect=col.getBoundingClientRect();
+    startMin=yToMin(e.clientY);
+    curMin=startMin;
+    active=true;
+    preview=document.createElement('div');
+    preview.className='drag-create-preview';
+    preview.style.display='none';
+    col.appendChild(preview);
+    col.classList.add('drag-creating');
+  });
+
+  document.addEventListener('mousemove', e=>{
+    if(!active) return;
+    e.preventDefault();
+    curMin=Math.max(SLOT0, Math.min(yToMin(e.clientY), SLOT1));
+    updatePreview();
+  });
+
+  document.addEventListener('mouseup', e=>{
+    if(!active) return;
+    curMin=Math.max(SLOT0, Math.min(yToMin(e.clientY), SLOT1));
+    finish();
+  });
+
+  // Touch events
+  let touchTimer=null, touchActive=false, touchStartX=0, touchStartY=0;
+  document.addEventListener('touchstart', e=>{
+    if(e.target.closest('.resize-handle')||e.target.closest('.schedule-block')) return;
+    const slot=e.target.closest('.slot-row');
+    const col=e.target.closest('.timeline-col');
+    if(!slot||!col||S.view!=='daily') return;
+    const t=e.touches[0];
+    touchStartX=t.clientX; touchStartY=t.clientY;
+    touchActive=false;
+    touchTimer=setTimeout(()=>{
+      touchActive=true; active=true;
+      colEl=col; colType=slot.dataset.type||'plan';
+      colRect=col.getBoundingClientRect();
+      startMin=yToMin(touchStartY); curMin=startMin;
+      preview=document.createElement('div');
+      preview.className='drag-create-preview';
+      preview.style.display='none';
+      col.appendChild(preview);
+      col.classList.add('drag-creating');
+      if(navigator.vibrate) navigator.vibrate(30);
+    }, 300);
+  }, {passive:true});
+
+  document.addEventListener('touchmove', e=>{
+    if(touchTimer&&!touchActive){
+      const t=e.touches[0];
+      if(Math.abs(t.clientX-touchStartX)>10||Math.abs(t.clientY-touchStartY)>10){
+        clearTimeout(touchTimer);touchTimer=null;
+      }
+      return;
+    }
+    if(!active||!touchActive) return;
+    e.preventDefault();
+    curMin=Math.max(SLOT0, Math.min(yToMin(e.touches[0].clientY), SLOT1));
+    updatePreview();
+  }, {passive:false});
+
+  document.addEventListener('touchend', e=>{
+    if(touchTimer){clearTimeout(touchTimer);touchTimer=null;}
+    if(!active||!touchActive){touchActive=false;return;}
+    if(e.changedTouches.length) {
+      curMin=Math.max(SLOT0, Math.min(yToMin(e.changedTouches[0].clientY), SLOT1));
+    }
+    touchActive=false;
+    finish();
+  });
+
+  document.addEventListener('touchcancel', ()=>{
+    if(touchTimer){clearTimeout(touchTimer);touchTimer=null;}
+    touchActive=false; cancel();
+  });
+}
+
+/* ================================================================
    INIT
    ================================================================ */
 function init() {
@@ -2818,6 +2968,7 @@ function init() {
   // Firebase 미사용 시에만 여기서 실행 (Firebase 사용 시 fbPull 완료 후 실행)
   if(!localStorage.getItem('fb_config')) carryOverUnmatched();
   initResize();
+  initDragCreate();
   initTouch();
   initSwipe();
   initMobileTooltip();
