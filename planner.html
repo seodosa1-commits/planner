@@ -73,6 +73,17 @@ body {
   font-size: 13px; transition: var(--transition); white-space: nowrap;
 }
 .header-btn:hover { background: rgba(255,255,255,0.3); }
+.header-btn.timer-active { background: rgba(74,222,128,0.35); animation: timer-pulse 1.6s ease-in-out infinite; }
+.header-btn.timer-active:hover { background: rgba(74,222,128,0.55); }
+@keyframes timer-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.5); } 50% { box-shadow: 0 0 0 6px rgba(74,222,128,0); } }
+.timer-elapsed {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 13px; font-weight: 600; color: #4ADE80;
+  padding: 4px 8px; background: rgba(74,222,128,0.12);
+  border-radius: var(--radius-sm); min-width: 58px; text-align: center;
+}
+.timer-elapsed.paused { color: #9BA3B5; background: rgba(155,163,181,0.12); }
+#timerControls { display: flex; gap: 6px; align-items: center; }
 
 /* ===== Tabs ===== */
 .tabs {
@@ -774,6 +785,7 @@ body {
 <header class="header">
   <h1>📋 플래너</h1>
   <div class="header-actions">
+    <div id="timerControls"></div>
     <button class="header-btn" onclick="openSearch()" title="검색">🔍</button>
     <button class="header-btn" onclick="showSettings()" title="설정">⚙️</button>
     <button class="header-btn" id="authBtn" onclick="handleAuth()">로그인</button>
@@ -2110,10 +2122,25 @@ function saveSchedule() {
   const end=document.getElementById('modalEnd').value;
   const type=document.getElementById('modalType').value;
   const pri=parseInt(document.getElementById('modalPriority').value)||0;
-  if(!title){toast('제목을 입력해주세요');return;}
+  if(!title){toast('제목을 입력해주세요');_saving=false;return;}
+
+  // 타임시트 기록 모드: 세그먼트별로 개별 entry 생성
+  if(S.timesheetSegments && S.timesheetSegments.length) {
+    const ds=S.timesheetDate||dateStr(new Date()), e=entry(ds);
+    for(const seg of S.timesheetSegments) {
+      e.plans.push({id:uid(),start:seg.start,end:seg.end,title,type,pri});
+    }
+    markModified(ds);
+    S.timesheetSegments=null; S.timesheetDate=null;
+    persist(); closeModal(); render();
+    toast('타임시트 기록이 저장되었습니다');
+    setTimeout(()=>_saving=false,300);
+    return;
+  }
+
   if(!start&&!end){ /* 시간 미지정 - OK */ }
-  else if(!start||!end){toast('시작과 종료 시간을 모두 지정하거나, 둘 다 미지정으로 선택하세요');return;}
-  else if(timeToMin(start)>=timeToMin(end)){toast('종료 시간이 시작보다 커야 합니다');return;}
+  else if(!start||!end){toast('시작과 종료 시간을 모두 지정하거나, 둘 다 미지정으로 선택하세요');_saving=false;return;}
+  else if(timeToMin(start)>=timeToMin(end)){toast('종료 시간이 시작보다 커야 합니다');_saving=false;return;}
 
   const ds=dateStr(S.date), e=entry(ds);
   if(S.editingId) {
@@ -2138,9 +2165,108 @@ function deleteSchedule() {
 }
 
 function closeModal() {
+  if(S.timesheetSegments && S.timesheetSegments.length) {
+    if(!confirm('타임시트 기록을 저장하지 않고 닫으시겠습니까?')) return;
+    S.timesheetSegments=null; S.timesheetDate=null;
+  }
   document.getElementById('scheduleModal').classList.remove('active');
+  document.getElementById('modalStart').disabled=false;
+  document.getElementById('modalEnd').disabled=false;
   S.editingId=null;
 }
+
+/* ================================================================
+   TIMESHEET TIMER (상단 재생/일시정지/정지)
+   ================================================================ */
+const TIMER_KEY='plannerTimer';
+function _timerSnap(mins) {
+  const r=Math.round(mins/10)*10;
+  return Math.max(SLOT0, Math.min(SLOT1, r));
+}
+function _timerNowMin() {
+  const d=new Date(); return d.getHours()*60+d.getMinutes();
+}
+function _timerPersist() {
+  if(S.timer) localStorage.setItem(TIMER_KEY, JSON.stringify(S.timer));
+  else localStorage.removeItem(TIMER_KEY);
+}
+function _timerLoad() {
+  try { const s=localStorage.getItem(TIMER_KEY); if(s) S.timer=JSON.parse(s); } catch(e){}
+}
+function timerStart() {
+  if(S.timer) return;
+  const ds=dateStr(new Date());
+  const t=minToTime(_timerSnap(_timerNowMin()));
+  S.timer={date:ds, segments:[{start:t,end:null}], paused:false};
+  _timerPersist(); updateTimerUI();
+  toast('타임시트 시작');
+}
+function timerPause() {
+  if(!S.timer || S.timer.paused) return;
+  const seg=S.timer.segments[S.timer.segments.length-1];
+  seg.end=minToTime(_timerSnap(_timerNowMin()));
+  S.timer.paused=true;
+  _timerPersist(); updateTimerUI();
+}
+function timerResume() {
+  if(!S.timer || !S.timer.paused) return;
+  S.timer.segments.push({start:minToTime(_timerSnap(_timerNowMin())), end:null});
+  S.timer.paused=false;
+  _timerPersist(); updateTimerUI();
+}
+function timerStop() {
+  if(!S.timer) return;
+  const seg=S.timer.segments[S.timer.segments.length-1];
+  if(!seg.end) seg.end=minToTime(_timerSnap(_timerNowMin()));
+  const segs=S.timer.segments.filter(s=>s.start&&s.end&&timeToMin(s.end)>timeToMin(s.start));
+  const date=S.timer.date;
+  S.timer=null; _timerPersist(); updateTimerUI();
+  if(!segs.length) { toast('기록할 시간이 없습니다'); return; }
+  // 모달을 타임시트 기록 모드로 오픈
+  S.editingId=null;
+  S.timesheetSegments=segs;
+  S.timesheetDate=date;
+  const total=segs.reduce((a,s)=>a+(timeToMin(s.end)-timeToMin(s.start)),0);
+  const label=segs.length>1?` (${segs.length}개 구간 · ${total}분)`:` (${total}분)`;
+  document.getElementById('modalTitle').textContent='타임시트 기록'+label;
+  document.getElementById('modalTitleInput').value='';
+  document.getElementById('modalStart').value=segs[0].start;
+  document.getElementById('modalEnd').value=segs[segs.length-1].end;
+  document.getElementById('modalStart').disabled=true;
+  document.getElementById('modalEnd').disabled=true;
+  document.getElementById('modalType').value='actual';
+  document.getElementById('modalPriority').value='0';
+  document.getElementById('modalDeleteBtn').style.display='none';
+  document.getElementById('scheduleModal').classList.add('active');
+  setTimeout(()=>document.getElementById('modalTitleInput').focus(),100);
+}
+function updateTimerUI() {
+  const c=document.getElementById('timerControls'); if(!c) return;
+  if(!S.timer) {
+    c.innerHTML=`<button class="header-btn" onclick="timerStart()" title="타임시트 시작">▶</button>`;
+  } else if(S.timer.paused) {
+    c.innerHTML=`<span class="timer-elapsed paused" id="timerElapsed">00:00</span>`+
+      `<button class="header-btn" onclick="timerResume()" title="재개">▶</button>`+
+      `<button class="header-btn" onclick="timerStop()" title="정지 및 기록">⏹</button>`;
+  } else {
+    c.innerHTML=`<span class="timer-elapsed" id="timerElapsed">00:00</span>`+
+      `<button class="header-btn timer-active" onclick="timerPause()" title="일시 정지">⏸</button>`+
+      `<button class="header-btn" onclick="timerStop()" title="정지 및 기록">⏹</button>`;
+  }
+  _updateTimerElapsed();
+}
+function _updateTimerElapsed() {
+  const el=document.getElementById('timerElapsed');
+  if(!el || !S.timer) return;
+  let total=0;
+  for(const s of S.timer.segments) {
+    const e=s.end?timeToMin(s.end):_timerSnap(_timerNowMin());
+    total += Math.max(0, e-timeToMin(s.start));
+  }
+  const h=Math.floor(total/60), m=total%60;
+  el.textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+setInterval(_updateTimerElapsed, 30000);
 
 /* ================================================================
    TODO PANEL TOGGLE
@@ -2961,6 +3087,8 @@ function initDragCreate() {
 function init() {
   populateTimeOpts();
   load();
+  _timerLoad();
+  updateTimerUI();
   loadKeywords();
   initFB();
   updateAuthUI();
