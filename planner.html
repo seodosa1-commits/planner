@@ -598,6 +598,17 @@ body {
 .btn-danger { background: var(--mismatch-color); color: white; }
 .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
 .btn-secondary:hover { background: var(--surface-hover); }
+.ts-picker { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow-y: auto; padding: 4px; border: 1px solid var(--border-light); border-radius: var(--radius-sm); background: var(--bg); }
+.ts-picker-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text); font-size: 13px; cursor: pointer;
+  text-align: left;
+}
+.ts-picker-item:hover { border-color: var(--primary); background: var(--surface-hover); }
+.ts-picker-item.selected { border-color: var(--primary); background: var(--surface-hover); color: var(--primary); }
+.ts-picker-time { font-size: 11px; color: var(--text-secondary); flex-shrink: 0; }
+.ts-picker-empty { font-size: 12px; color: var(--text-secondary); padding: 8px; text-align: center; }
 
 /* ===== Settings ===== */
 .settings-section { margin-bottom: 16px; }
@@ -826,6 +837,10 @@ body {
 <div class="modal-overlay" id="scheduleModal">
   <div class="modal">
     <h2 id="modalTitle">일정 추가</h2>
+    <div class="modal-field" id="timesheetPickerField" style="display:none">
+      <label>오늘의 계획에서 선택</label>
+      <div class="ts-picker" id="timesheetPickerList"></div>
+    </div>
     <div class="modal-field">
       <label>제목</label>
       <input type="text" id="modalTitleInput" placeholder="일정 제목" onkeydown="if(event.key==='Enter')saveSchedule()">
@@ -2172,6 +2187,9 @@ function closeModal() {
   document.getElementById('scheduleModal').classList.remove('active');
   document.getElementById('modalStart').disabled=false;
   document.getElementById('modalEnd').disabled=false;
+  const tsField=document.getElementById('timesheetPickerField');
+  if(tsField) tsField.style.display='none';
+  S._tsPickerItems=null;
   S.editingId=null;
 }
 
@@ -2238,8 +2256,54 @@ function timerStop() {
   document.getElementById('modalType').value='actual';
   document.getElementById('modalPriority').value='0';
   document.getElementById('modalDeleteBtn').style.display='none';
+  _renderTimesheetPicker(date);
   document.getElementById('scheduleModal').classList.add('active');
   setTimeout(()=>document.getElementById('modalTitleInput').focus(),100);
+}
+function _renderTimesheetPicker(date) {
+  const field=document.getElementById('timesheetPickerField');
+  const list=document.getElementById('timesheetPickerList');
+  if(!field||!list) return;
+  const e=S.entries[date]||{plans:[]};
+  const plans=(e.plans||[]).filter(p=>p.type==='plan');
+  const acts=new Set((e.plans||[]).filter(p=>p.type==='actual'||p.type==='incomplete').map(p=>p.title.trim().toLowerCase()));
+  const items=[];
+  const seen=new Set();
+  for(const p of plans) {
+    const key=(p.title||'').trim().toLowerCase();
+    if(!key||seen.has(key)||acts.has(key)) continue;
+    seen.add(key);
+    const time=(p.start&&p.end)?`${p.start}–${p.end}`:'';
+    items.push({title:p.title, time, pri:p.pri||0});
+  }
+  for(const t of (S.todos||[])) {
+    if(t.completed) continue;
+    const key=(t.title||'').trim().toLowerCase();
+    if(!key||seen.has(key)||acts.has(key)) continue;
+    seen.add(key);
+    items.push({title:t.title, time:'', pri:t.pri||0});
+  }
+  const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  if(!items.length) {
+    list.innerHTML='<div class="ts-picker-empty">오늘 계획된 항목이 없습니다</div>';
+  } else {
+    S._tsPickerItems=items;
+    list.innerHTML=items.map((it,i)=>{
+      const t=it.time?`<span class="ts-picker-time">${esc(it.time)}</span>`:'';
+      return `<button type="button" class="ts-picker-item" data-idx="${i}" onclick="_pickTimesheet(${i})"><span>${esc(it.title)}</span>${t}</button>`;
+    }).join('');
+  }
+  field.style.display='';
+}
+function _pickTimesheet(i) {
+  const it=(S._tsPickerItems||[])[i]; if(!it) return;
+  const inp=document.getElementById('modalTitleInput');
+  inp.value=it.title;
+  const pSel=document.getElementById('modalPriority');
+  if(pSel) pSel.value=String(it.pri||0);
+  const list=document.getElementById('timesheetPickerList');
+  if(list) list.querySelectorAll('.ts-picker-item').forEach(b=>b.classList.toggle('selected', b.dataset.idx===String(i)));
+  inp.focus();
 }
 function updateTimerUI() {
   const c=document.getElementById('timerControls'); if(!c) return;
