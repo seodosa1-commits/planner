@@ -2244,15 +2244,15 @@ function timerStop() {
 function updateTimerUI() {
   const c=document.getElementById('timerControls'); if(!c) return;
   if(!S.timer) {
-    c.innerHTML=`<button class="header-btn" onclick="timerStart()" title="타임시트 시작">▶</button>`;
+    c.innerHTML=`<button class="header-btn" onclick="timerStart()" title="타임시트 시작 (⌥⇧P)">▶</button>`;
   } else if(S.timer.paused) {
     c.innerHTML=`<span class="timer-elapsed paused" id="timerElapsed">00:00:00</span>`+
-      `<button class="header-btn" onclick="timerResume()" title="재개">▶</button>`+
-      `<button class="header-btn" onclick="timerStop()" title="정지 및 기록">⏹</button>`;
+      `<button class="header-btn" onclick="timerResume()" title="재개 (⌥⇧P)">▶</button>`+
+      `<button class="header-btn" onclick="timerStop()" title="정지 및 기록 (⌥⇧S)">⏹</button>`;
   } else {
     c.innerHTML=`<span class="timer-elapsed" id="timerElapsed">00:00:00</span>`+
-      `<button class="header-btn timer-active" onclick="timerPause()" title="일시 정지">⏸</button>`+
-      `<button class="header-btn" onclick="timerStop()" title="정지 및 기록">⏹</button>`;
+      `<button class="header-btn timer-active" onclick="timerPause()" title="일시 정지 (⌥⇧P)">⏸</button>`+
+      `<button class="header-btn" onclick="timerStop()" title="정지 및 기록 (⌥⇧S)">⏹</button>`;
   }
   _updateTimerElapsed();
 }
@@ -2269,6 +2269,21 @@ function _updateTimerElapsed() {
   el.textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 setInterval(_updateTimerElapsed, 1000);
+
+function timerToggle() {
+  if(!S.timer) timerStart();
+  else if(S.timer.paused) timerResume();
+  else timerPause();
+}
+function _timerKeyHandler(e) {
+  const t=e.target;
+  if(t && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable)) return;
+  if(!(e.altKey && e.shiftKey) || e.ctrlKey || e.metaKey) return;
+  const k=(e.key||'').toLowerCase();
+  if(k==='p') { e.preventDefault(); timerToggle(); }
+  else if(k==='s') { e.preventDefault(); timerStop(); }
+}
+document.addEventListener('keydown', _timerKeyHandler);
 
 /* ================================================================
    TODO PANEL TOGGLE
