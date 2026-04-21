@@ -1080,6 +1080,7 @@ function save() {
   localStorage.setItem('pl_todos', JSON.stringify(S.todos));
   localStorage.setItem('pl_goals', JSON.stringify(S.weeklyGoals));
   localStorage.setItem('pl_dismissed', JSON.stringify(S.dismissedCarryOvers));
+  localStorage.setItem('pl_dismissedPlanIds', JSON.stringify((S.dismissedPlanIds||[]).slice(-500)));
 }
 function load() {
   try {
@@ -1087,7 +1088,9 @@ function load() {
     const t=localStorage.getItem('pl_todos'); if(t) S.todos=JSON.parse(t);
     const g=localStorage.getItem('pl_goals'); if(g) S.weeklyGoals=JSON.parse(g);
     const dc=localStorage.getItem('pl_dismissed'); if(dc) S.dismissedCarryOvers=JSON.parse(dc);
+    const dpi=localStorage.getItem('pl_dismissedPlanIds'); if(dpi) S.dismissedPlanIds=JSON.parse(dpi);
   } catch(e) { console.error(e); }
+  if(!Array.isArray(S.dismissedPlanIds)) S.dismissedPlanIds=[];
 }
 function loadKeywords() {
   try {
@@ -2173,6 +2176,8 @@ function saveSchedule() {
 function deleteSchedule() {
   if(!S.editingId||!confirm('이 일정을 삭제하시겠습니까?')) return;
   const ds=dateStr(S.date), e=entry(ds);
+  if(!S.dismissedPlanIds) S.dismissedPlanIds=[];
+  S.dismissedPlanIds.push(S.editingId);
   e.plans=e.plans.filter(p=>p.id!==S.editingId);
   markModified(ds);
   persist(); closeModal(); render();
@@ -2527,10 +2532,23 @@ function fbSync() {
   if(!S.fbReady||!S.user) return;
   const db=firebase.firestore(), u=S.user.uid;
   const now=Date.now();
+  // entries는 외부(법률 비서 등)가 같은 문서에 ArrayUnion으로 추가할 수 있어,
+  // 통째 set으로 덮으면 race로 외부 추가분이 사라진다.
+  // → transaction으로 서버에만 있는 plan(외부 추가분)을 보존하면서 머지.
+  const dismissedSet = new Set(S.dismissedPlanIds || []);
   for(const[date,ent]of Object.entries(S.entries)){
     if(!ent.lastModified) ent.lastModified=now;
     const ref=db.collection('users').doc(u).collection('entries').doc(date);
-    ref.set(ent).catch(console.error);
+    db.runTransaction(async (t)=>{
+      const snap = await t.get(ref);
+      const remote = snap.exists ? (snap.data()||{}) : {plans:[]};
+      const localIds = new Set((ent.plans||[]).map(p=>p.id));
+      const serverOnly = (remote.plans||[]).filter(p =>
+        p && p.id && !localIds.has(p.id) && !dismissedSet.has(p.id)
+      );
+      const merged = [...(ent.plans||[]), ...serverOnly];
+      t.set(ref, {plans: merged, lastModified: ent.lastModified || now});
+    }).catch(console.error);
   }
   db.collection('users').doc(u).collection('data').doc('todos').set({items:S.todos, dismissed:S.dismissedCarryOvers, lastModified: now}).catch(console.error);
   db.collection('users').doc(u).collection('data').doc('goals').set({...S.weeklyGoals, lastModified: now}).catch(console.error);
