@@ -2547,7 +2547,7 @@ function fbSync() {
         p && p.id && !localIds.has(p.id) && !dismissedSet.has(p.id)
       );
       const merged = [...(ent.plans||[]), ...serverOnly];
-      t.set(ref, {plans: merged, lastModified: ent.lastModified || now});
+      t.set(ref, {plans: merged, memo: ent.memo||'', lastModified: ent.lastModified || now});
     }).catch(console.error);
   }
   db.collection('users').doc(u).collection('data').doc('todos').set({items:S.todos, dismissed:S.dismissedCarryOvers, lastModified: now}).catch(console.error);
@@ -2564,7 +2564,10 @@ function fbPull() {
       else {
         const remoteTime=d.lastModified||0;
         const localTime=loc.lastModified||0;
-        if(remoteTime>localTime) S.entries[doc.id]=d;
+        if(remoteTime>localTime){
+          if(d.memo===undefined && loc.memo) d.memo=loc.memo;
+          S.entries[doc.id]=d;
+        }
       }
     });
     save(); render();
@@ -2606,7 +2609,10 @@ function fbListen() {
         const loc=S.entries[ch.doc.id];
         const remoteTime=d.lastModified||0;
         const localTime=(loc&&loc.lastModified)||0;
-        if(remoteTime>=localTime) S.entries[ch.doc.id]=d;
+        if(remoteTime>=localTime){
+          if(d.memo===undefined && loc && loc.memo) d.memo=loc.memo;
+          S.entries[ch.doc.id]=d;
+        }
       }
     });
     save(); render();
